@@ -31,15 +31,18 @@ Every run job, of every type, is killed one hour after its `run` command was
 issued (`run_time_limit_minutes: 60`, written into config). Queue time counts. Its
 status becomes `terminated` with reason `Reached execution time limit.`
 
+**One worktree, one run.** An agent never has two `omc run` jobs going on the same
+worktree. Every `omc run` (of any job type) first kills everything still running
+for that worktree, including a kept-alive E2E environment, then starts its job.
+
 An E2E suite's process tree is killed by watch, never by LLM logic, when any of
 these happens:
 - the suite **passes**;
 - the **1-hour limit** is reached;
-- **another E2E request from the same worktree** arrives. There is at most one agent
-  per worktree, so a new request always replaces whatever is still running there.
+- **any new `omc run`** comes from the same worktree.
 
 A failed suite therefore stays up for the fix skill and `/investigate local` until
-the next E2E request or the time limit, whichever comes first.
+the next `omc run` from that worktree or the time limit, whichever comes first.
 
 ## 9.4 The fix loop
 
@@ -131,6 +134,4 @@ that can't provide it never get that redirect.
 
 ## 9.8 Assumed details (not yet confirmed)
 
-- A new `omc run check` from a worktree that already has a check job running
-  replaces it, the same rule as for E2E (one agent per worktree).
 - Fix skill names follow the job types: `/omc:fix-check` and `/omc:fix-e2e-tests`.
