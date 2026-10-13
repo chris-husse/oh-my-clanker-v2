@@ -25,13 +25,21 @@ starts it, gets an ID back immediately, and checks on it.
   config), so each poll returns before Claude's 2-minute Bash timeout. Codex's
   shell-tool timeout still has to be verified before the default is final.
 
-## 9.3 Time limit
+## 9.3 Time limit and teardown
 
 Every run job, of every type, is killed one hour after its `run` command was
 issued (`run_time_limit_minutes: 60`, written into config). Queue time counts. Its
-status becomes `terminated` with reason `Reached execution time limit.` For a
-kept-alive E2E suite, the time left for `/investigate local` is whatever remains
-of the hour.
+status becomes `terminated` with reason `Reached execution time limit.`
+
+An E2E suite's process tree is killed by watch, never by LLM logic, when any of
+these happens:
+- the suite **passes**;
+- the **1-hour limit** is reached;
+- **another E2E request from the same worktree** arrives. There is at most one agent
+  per worktree, so a new request always replaces whatever is still running there.
+
+A failed suite therefore stays up for the fix skill and `/investigate local` until
+the next E2E request or the time limit, whichever comes first.
 
 ## 9.4 The fix loop
 
@@ -123,6 +131,6 @@ that can't provide it never get that redirect.
 
 ## 9.8 Assumed details (not yet confirmed)
 
-- Starting a job of a type that is already running for the same worktree returns
-  that job's ID rather than starting a second one.
+- A new `omc run check` from a worktree that already has a check job running
+  replaces it, the same rule as for E2E (one agent per worktree).
 - Fix skill names follow the job types: `/omc:fix-check` and `/omc:fix-e2e-tests`.

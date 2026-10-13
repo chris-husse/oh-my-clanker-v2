@@ -80,6 +80,17 @@ A full `omc run check`, then `omc run e2e-tests`, with the same bounded fix loop
 It is its own plugin so a repo can change its E2E policy (e.g. a `just up` first,
 or no E2E) without replacing the build plugin.
 
+- **No E2E suite configured:** `omc run e2e-tests` returns `passed` with
+  `configured: false` immediately; the plugin prints "no E2E suite configured for
+  <repo>" in its output and again in the implement summary.
+- **E2E environment lifetime** is managed by watch, never by LLM logic (09-run-jobs.md
+  §9.3).
+- **Rounds exhausted:** the lifecycle stops with the CRITICAL report; `commit`
+  doesn't run and the orchestrator states no continuation. Your explicit answer to
+  the CRITICAL question resets the round counter for that worktree and job type
+  (`omc internal reset-rounds <job-type>`, called only after your reply), and the
+  gate reruns with the full round budget, carrying your answer as the fix brief.
+
 ## 8.5 `commit`
 
 - Commits any tracked changes left from fix rounds, with a descriptive message.
