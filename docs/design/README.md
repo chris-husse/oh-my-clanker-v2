@@ -23,6 +23,7 @@ in [open-questions.md](open-questions.md), with its full options.
 | 9 | [09-run-jobs.md](09-run-jobs.md) | `omc run`: check and E2E jobs, the fix loop, test snippets |
 | 10 | [10-review-lifecycle.md](10-review-lifecycle.md) | The review lifecycle: deviation analysis, code review, the CI gate |
 | 11 | [11-publish-lifecycle.md](11-publish-lifecycle.md) | The publish lifecycle: creating, splitting and pushing MRs, review comments |
+| 12 | [12-session-memory.md](12-session-memory.md) | Per-branch memory: `omc memory add`, injection, retention |
 | — | [open-questions.md](open-questions.md) | Every open and parked question, in full |
 
 ## Naming

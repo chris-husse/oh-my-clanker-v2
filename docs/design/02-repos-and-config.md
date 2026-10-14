@@ -89,6 +89,8 @@ no worktrees remain under its folder.
     docs/                           # wiki cache, when documentation is on
     branches/<branch-file>/         # per-branch data
     logs/                           # watch job logs for this repo
+  sessions/<repo-key>/<branch-file>/
+    optmem/                         # the branch's session memory (12-session-memory.md)
 ```
 
 - **Hidden clones** are full clones only watch touches. They always sit on the

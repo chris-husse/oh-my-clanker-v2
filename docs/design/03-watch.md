@@ -182,6 +182,9 @@ follows one rule. Each tick, watch deletes folders older than
 exceeds `tmp_max_gb: 100`, it deletes the oldest day folders first until under.
 Both are local config values.
 
+Session memories (12-session-memory.md) follow their own rule: watch clears a
+branch's `~/.omc2/sessions/` subfolder once it has been unmodified for a month.
+
 ## 3.9 Output
 
 - **An append-only log, not a UI.** New lines append at the bottom; live progress

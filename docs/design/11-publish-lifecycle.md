@@ -49,10 +49,27 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
   output and again in the summary, and prints the description for you to paste;
   the push has still happened.
 - **Not always on `main`:** a branch can be based on another local worktree's
-  branch, and a huge MR may need splitting into logical chunks. How both work is
-  open (open-questions.md, I2–I4), as is the ticket (I5).
+  branch. That intent is never fixed at design time; it comes from the branch's
+  session memory (12-session-memory.md), whenever you said it. How a stacked
+  branch follows its parent is open (open-questions.md, I3), as is the ticket (I5).
 
-## 11.3 Assumed (not yet confirmed)
+## 11.3 Splitting a huge MR
+
+- `create-mr` offers a split when the diff exceeds `review.split_suggest_lines`
+  (written into config, e.g. `800`), and on request.
+- The proposal comes from **`/suggest-mr-split`**, a skill that does a deep
+  analysis of the feature's seams and how to break it into logical increments
+  that stack well and can each be deployed on their own. Each chunk: a title, its
+  files and hunks, and why it stands alone. You approve or change it.
+- Python builds a stack of branches `<branch>-1 … <branch>-n`, each one commit on
+  the previous; the last one's tree is identical to the gated tree.
+- Each intermediate chunk must pass `omc run check` (the full gate already passed
+  on the last tree).
+- The MRs open as a stack, each targeting the previous chunk, with "part i of n"
+  in the description.
+
+
+## 11.4 Assumed (not yet confirmed)
 
 - After an LLM fallback in `create-mr`, Python verifies the result: exactly one
   commit over the base, its tree identical to the tree `ci-gate` passed, and

@@ -158,7 +158,7 @@ fail-loud as a rule.
   ```
 
   Python (`omc internal rebase`) fetches and rebases the branch onto its base
-  (`origin/<base>`, or the parent branch for a stacked branch, I2–I3); on
+  (`origin/<base>`, or the parent branch named in session memory, I3); on
   conflicts, the LLM resolves them and Python verifies none remain, else you are
   asked. When the branch is already on the latest base it is a no-op, the tree is
   unchanged, and publish's `ci-gate` skips every job (identical tree). If the base
@@ -172,49 +172,20 @@ fail-loud as a rule.
   that may conflict or break on the current base, found only on the MR. (a) costs
   one mostly no-op plugin in each lifecycle.
 
-### I2. Where a branch's base comes from (stacked branches)
-- **(a) Recommended: recorded once, when the worktree is cut.** `omc design <repo>
-  "<seed>" --on <branch>` starts a branch on top of another omc branch of the same
-  repo (one with a local worktree); without `--on`, the base is the repo's `base`.
-  Python records the base branch and the fork point (the parent's commit the
-  branch was cut from) in the branch's cache folder
-  (`~/.omc2/repos/<key>/branches/<branch-file>/`). Rebase, the deviation diff, the
-  squash and the MR target all use the recorded base. `create-mr` refuses while
-  the parent isn't pushed, naming it.
-- **(b)** Asked at `create-mr` time.
-- **(c)** Inferred from git (the nearest branch by merge-base).
-- **Cost if wrong:** (b) means every earlier plugin diffed and gated against the
-  wrong base. (c) guesses wrong when branches share history. (a) needs `--on` at
-  design time; a branch can't be re-parented later without a new command.
-
 ### I3. A stacked branch when its parent changes or merges
-- **(a) Recommended:** the `rebase` plugin uses the recorded fork point:
-  `git rebase --onto <parent's new tip> <old fork point>`, then records the new
-  fork point. This is needed because the parent's own squash rewrites its commits,
-  so a plain rebase would replay them. Once the parent is merged, the base becomes
-  the repo's `base` (the same `--onto`, from the parent's last fork point), and
-  `create-mr` retargets the MR there.
-- **(b)** A plain `git rebase <parent>`, and you fix duplicates by hand.
+The base comes from session memory (12-session-memory.md), not from a record made
+at design time.
+- **(a) Recommended:** the plugin passes the base it read from memory to Python
+  explicitly (`omc internal rebase --base <branch>`); Python checks the branch
+  exists. Python keeps the parent tip it last rebased onto in the branch's cache
+  folder and rebases with `git rebase --onto <parent's new tip> <last parent
+  tip>`, because the parent's own squash rewrites its commits. Once the parent is
+  merged, the base is the repo's `base` again (the same `--onto`) and `create-mr`
+  retargets the MR there.
+- **(b)** A plain `git rebase <parent>`; you fix duplicates by hand.
 - **Cost if wrong:** (b) replays the parent's unsquashed commits onto its squashed
   commit after every parent squash: conflicts or duplicated changes in the child
-  MR. (a) requires the fork point to be kept accurately.
-
-### I4. Splitting a huge MR into logical chunks
-- **(a) Recommended: a split step inside `create-mr`,** offered when the diff
-  exceeds `review.split_suggest_lines` (written into config, e.g. `800`) and
-  available on request. The LLM proposes an ordered split (each chunk: title,
-  files and hunks, why it stands alone); you approve or change it. Python builds a
-  stack of branches `<branch>-1 … <branch>-n`, each one commit on the previous,
-  the last one's tree identical to the gated tree. Each intermediate chunk must
-  pass `omc run check` (the full gate already passed on the last tree). The MRs
-  open as a stack, each targeting the previous chunk, with "part i of n" in the
-  description.
-- **(b)** Split at design time instead: the plan becomes several stacked designs
-  and branches (I2).
-- **(c)** No split support; you split by hand.
-- **Cost if wrong:** (b) only helps when the size is known before implementing.
-  (c) leaves the hardest MR to the user. (a) costs a `check` run per intermediate
-  chunk, and a chunk that doesn't build sends you back to the split.
+  MR. (a) keeps one piece of git state per branch, written only by Python.
 
 ### I5. The ticket at MR time
 - **(a) Recommended:** move the primary ticket to an "In Review"-type status with
@@ -230,3 +201,43 @@ fail-loud as a rule.
 ### I6. Incorporating MR review comments (next question group)
 - How publish is re-entered once comments arrive, how comments are triaged, and
   how a change goes again through design, review, `ci-gate` and push.
+
+## J. Session memory (12-session-memory.md)
+
+### J1. OptMem or omc's own store
+OptMem's repository has **no license** (GitHub reports none), so by default all
+rights are reserved: omc may not copy or ship its code. It installs with
+`curl … | sh` into `~/.optmem/`, is one Python 3 file with no dependencies, and was
+last pushed 2026-07-31.
+- **(a) Recommended: omc's own minimal store, borrowing OptMem's format.** One
+  file per branch, append-only, one memory per line (≤ 280 bytes), each with a
+  timestamp. Injection prints it verbatim. No summary tree: a branch's memory is
+  a few dozen lines.
+- **(b)** Use an installed OptMem with `$MEMORY_DIR` pointing at the branch
+  folder; the prerequisite checks it is installed, as for superpowers.
+- **(c)** Ask the author for a license first, then vendor it.
+- **Cost if wrong:** (b) makes every user run an unpinned `curl | sh`, and its
+  `note` can stop mid-skill to ask the model for summary merges ("nap"). (a) loses
+  OptMem's summaries and recall if a branch's memory ever grows to hundreds of
+  lines.
+
+### J2. Who adds memories
+- **(a) Recommended:** you, with `omc memory add` in a shell, and the session's
+  main agent when you state a standing instruction for the branch in the
+  conversation: it runs `omc memory add` with your words and says so in one line.
+  Subagents never write memories (OptMem's own rule).
+- **(b)** Only you, by command.
+- **(c)** The agent too, for anything it learns (OptMem's model).
+- **Cost if wrong:** (b) loses everything you say in conversation unless you
+  retype it as a command. (c) fills the memory with the agent's own notes, which
+  then steer every later skill. (a) depends on the agent spotting a standing
+  instruction; the one-line confirmation shows you when it did.
+
+### J3. Where memory is injected
+- **(a) Recommended: into every rendered skill for the branch** (every lifecycle
+  plugin, fix skill and user-facing skill run in that worktree), as a
+  `## Session memory` block right after the stub's header. Python renders it; an
+  empty memory renders nothing.
+- **(b)** Only into lifecycle orchestrator skills.
+- **Cost if wrong:** (b) lets a fix skill or `create-mr` miss "target branch X".
+  (a) adds the memory's size to every skill's context.
