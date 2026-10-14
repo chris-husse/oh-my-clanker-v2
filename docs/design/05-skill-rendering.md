@@ -30,6 +30,13 @@ Constraints this design respects:
   skill load. Failures are rendered as an ABORT skill (5.6) and exit 0.
 - **Preprocessing has a 2-minute timeout,** so rendering is fast. Anything long
   runs as a watch job (09-run-jobs.md).
+- **Preprocessing also runs when the model invokes the skill** through the Skill
+  tool, not only when you type it (verified on Claude Code 2.1.300: the model
+  received the rendered output, never the raw command).
+- **The command must be allowed** by `allowed-tools` or permission rules; outside
+  auto mode, a disallowed command aborts the whole invocation. The setting
+  `disableSkillShellExecution: true` turns preprocessing off, and skills synced
+  from claude.ai never run it.
 - **`$ARGUMENTS` is never used**, because Claude substitutes it unescaped into the
   command. Inputs come from files.
 - Enterprise policy can disable skill shell execution
@@ -126,4 +133,7 @@ different behaviour writes a lifecycle plugin instead.
 
 A command only you may start (e.g. a gated transition) uses
 `disable-model-invocation: true` in its Claude frontmatter. The Codex equivalent
-is unverified (open-questions.md).
+is `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`
+(next to `SKILL.md`, not in the frontmatter). It only hides the skill from the
+model's skill list; explicit `$skill` invocation still works, and unlike Claude
+there is no hard block against the model reading the file.

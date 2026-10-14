@@ -26,8 +26,11 @@ define their own job types.
   locks and `isolate_e2e_execution` (03-watch.md §3.6). Jobs need repo trust and an
   integrated repo.
 - **Status polls long-poll** up to `run.poll_wait_seconds` (default `100`, local
-  config), so each poll returns before Claude's 2-minute Bash timeout. Codex's
-  shell-tool timeout still has to be verified before the default is final.
+  config), so each poll returns before Claude's 2-minute Bash timeout. In Codex
+  (unified exec, on by default) a 100-second poll isn't killed: the tool call
+  returns after its yield time (10 s by default, at most 30 s) with a session ID,
+  the command keeps running, and the model reads the result by polling the
+  session (`background_terminal_max_timeout`, default 300 s).
 
 ## 9.3 Time limit and teardown
 

@@ -125,13 +125,6 @@ fail-loud as a rule.
   without an `<error>` branch. (b) turns every fact hiccup in a hand-written hook
   into an aborted skill.
 
-## G. To verify (no decision, a check)
-
-- Codex's shell-tool timeout, before `run.poll_wait_seconds: 100` is final.
-- The Codex equivalent of Claude's `disable-model-invocation`.
-- Whether Claude's `` !`cmd` `` preprocessing runs when the model invokes a skill
-  through the Skill tool.
-
 ## H. Parked topics (not yet formulated as questions)
 
 - **`/investigate`:** parked by you; v1's `investigate` is used in the meantime.
