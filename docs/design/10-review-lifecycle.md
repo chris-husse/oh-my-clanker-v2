@@ -1,5 +1,9 @@
 # 10. The review lifecycle
 
+Review makes sure the right thing was built and that it meets the quality gates.
+Creating, splitting, pushing and updating MRs is the publish lifecycle's job
+(11-publish-lifecycle.md).
+
 ## 10.1 Shape
 
 - **Input:** the committed design artifact (`<slug>.md`, `<slug>-plan.md`,
@@ -10,8 +14,10 @@
 - **Default pipeline:**
 
   ```yaml
-  review: [deviation-analysis, code-review, ci-gate, create-mr]
+  review: [deviation-analysis, code-review, ci-gate]
   ```
+
+- After `ci-gate`, the lifecycle orchestrator states how to continue to publish.
 
 ## 10.2 `deviation-analysis`
 
@@ -75,54 +81,13 @@ The gate before the MR. It runs, in order, each with the usual fix loop
   tree, so everything reruns. When review changed nothing, the milestone gate's
   passes from implement carry over and only `ci` runs.
 - Rounds exhausted: the CRITICAL stop, as in `milestone-gate`
-  (08-implement-lifecycle.md §8.4); `create-mr` doesn't run.
+  (08-implement-lifecycle.md §8.4); the orchestrator states no continuation.
+- The publish lifecycle reuses `ci-gate` (11-publish-lifecycle.md).
 
-## 10.5 `create-mr`
-
-Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
-`create-mr`:
-
-1. squashes the branch;
-2. prepares a human-facing MR description;
-3. pushes;
-4. opens the MR.
-
-- **Squash and push are Python** (`omc internal squash`, `omc internal push`), with
-  an **LLM fallback** when either fails: the LLM gets the command's error and
-  resolves it.
-  - The squash leaves one commit on top of the base; its message is the MR title
-    plus a short body. The tree stays identical, so `ci-gate`'s passes still hold.
-  - The push is `--force-with-lease` to `origin/<branch>`, so a re-review after an
-    earlier push replaces the branch without clobbering commits someone else
-    pushed.
-- **The MR** is opened (or, if one exists, its description updated) by the LLM
-  with whatever forge tools the session has; omc doesn't know the forge. It
-  targets the branch's base and opens ready for review, not as a draft.
-- **The description** is written for a human reviewer, from the design and the
-  diff:
-  - **Summary:** what changes and why, in a few sentences;
-  - **Changes:** the notable changes, grouped;
-  - **Deviations from the design:** the accepted entries of
-    `<slug>-deviations.md`, one line each;
-  - **Testing:** the `ci-gate` results;
-  - **Links:** the primary and related tickets.
-
-  No internal omc paths, plugin names or `/tmp` links.
-- **If the MR can't be opened** (no forge tools, auth), the plugin says why in its
-  output and again in the summary, and prints the description for you to paste;
-  the push has still happened.
-- **Not always on `main`:** a branch can be based on another local worktree's
-  branch, and a huge MR may need splitting into logical chunks. How both work is
-  open (open-questions.md, I6–I8), as are the rebase (I1), the ticket (I4) and
-  whether a `publish` lifecycle remains (I5).
-
-## 10.6 Assumed (not yet confirmed)
+## 10.5 Assumed (not yet confirmed)
 
 - `deviation-analysis` reverts and `code-review` fixes are committed on the branch
-  with descriptive messages as they are applied; `create-mr` squashes them.
+  with descriptive messages as they are applied; publish's `create-mr` squashes
+  them.
 - `<slug>-deviations.md` is committed by Python at `deviation-analysis`'s `--done`,
   the same way `<slug>-rulings.md` is.
-- After an LLM fallback in `create-mr`, Python verifies the result: exactly one
-  commit over the base, its tree identical to the tree `ci-gate` passed, and
-  `origin/<branch>` at local `HEAD`. A failed verification fails the skill. The
-  fallback never uses a plain `--force`.

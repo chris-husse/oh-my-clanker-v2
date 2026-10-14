@@ -147,44 +147,32 @@ fail-loud as a rule.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## I. `create-mr` (10-review-lifecycle.md §10.5)
+## I. Publish lifecycle (11-publish-lifecycle.md)
 
-### I1. Rebasing onto the latest base
-- **(a) Recommended: a `rebase` plugin first in the review pipeline**
-  (`review: [rebase, deviation-analysis, code-review, ci-gate, create-mr]`). Python
-  (`omc internal rebase`) fetches and rebases the branch onto its base (`origin/<base>`,
-  or the parent branch for a stacked branch, I6–I7); on
+### I1. The pipeline for creating the MR, and where the rebase goes
+- **(a) Recommended: a `rebase` plugin first in both review and publish.**
+
+  ```yaml
+  review:  [rebase, deviation-analysis, code-review, ci-gate]
+  publish: [rebase, ci-gate, create-mr]
+  ```
+
+  Python (`omc internal rebase`) fetches and rebases the branch onto its base
+  (`origin/<base>`, or the parent branch for a stacked branch, I2–I3); on
   conflicts, the LLM resolves them and Python verifies none remain, else you are
-  asked. Review and the gate then see exactly the base that is pushed. If the base
-  moves after the gate, the MR's own CI catches it; omc doesn't rebase again.
+  asked. When the branch is already on the latest base it is a no-op, the tree is
+  unchanged, and publish's `ci-gate` skips every job (identical tree). If the base
+  moved since review, the rebased tree is gated again before anything is pushed.
   The same command serves the parked `omc refresh`.
-- **(b)** `create-mr` rebases right before pushing.
+- **(b)** Rebase only in publish (`publish: [rebase, ci-gate, create-mr]`);
+  review runs against the base the worktree was cut from.
 - **(c)** No rebase; the forge merges with the base.
-- **Cost if wrong:** (b) pushes a tree `ci-gate` never saw. (c) reviews and gates
-  against a stale base, so conflicts and breakages show up only on the MR. (a)
-  costs one plugin, and conflict resolution before any review.
+- **Cost if wrong:** (b) reviews against a stale base, so the deviation analysis
+  and code review miss interactions with newer base changes. (c) pushes a branch
+  that may conflict or break on the current base, found only on the MR. (a) costs
+  one mostly no-op plugin in each lifecycle.
 
-### I4. The ticket at MR time
-- **(a) Recommended:** move the primary ticket to an "In Review"-type status with
-  the session's tracker tools; nothing else, as with `ticket-start`. Skipped when
-  the design has no `Primary:` line; a failure is stated in the output and the
-  summary, and the plugin continues.
-- **(b)** Also add the MR link as a ticket comment.
-- **(c)** Don't touch the ticket.
-- **Cost if wrong:** (b) adds a write omc refused at `ticket-start` (comments are
-  noise when the forge already links MRs to tickets by key). (c) leaves the ticket
-  "In Progress" while the MR waits for review.
-
-### I5. Does a separate `publish` lifecycle remain?
-- **(a) Recommended: no.** `create-mr` publishes, so the lifecycles are `design`,
-  `implement` and `review`. Addressing MR comments (`respond`) stays parked as its
-  own topic.
-- **(b)** Keep `publish` as a fourth lifecycle and move `create-mr` there.
-- **Cost if wrong:** (b) adds a lifecycle and a handoff between the gate and the
-  push for no new behaviour. (a) means `respond`, if it becomes a lifecycle,
-  is added later.
-
-### I6. Where a branch's base comes from (stacked branches)
+### I2. Where a branch's base comes from (stacked branches)
 - **(a) Recommended: recorded once, when the worktree is cut.** `omc design <repo>
   "<seed>" --on <branch>` starts a branch on top of another omc branch of the same
   repo (one with a local worktree); without `--on`, the base is the repo's `base`.
@@ -199,7 +187,7 @@ fail-loud as a rule.
   wrong base. (c) guesses wrong when branches share history. (a) needs `--on` at
   design time; a branch can't be re-parented later without a new command.
 
-### I7. A stacked branch when its parent changes or merges
+### I3. A stacked branch when its parent changes or merges
 - **(a) Recommended:** the `rebase` plugin uses the recorded fork point:
   `git rebase --onto <parent's new tip> <old fork point>`, then records the new
   fork point. This is needed because the parent's own squash rewrites its commits,
@@ -211,7 +199,7 @@ fail-loud as a rule.
   commit after every parent squash: conflicts or duplicated changes in the child
   MR. (a) requires the fork point to be kept accurately.
 
-### I8. Splitting a huge MR into logical chunks
+### I4. Splitting a huge MR into logical chunks
 - **(a) Recommended: a split step inside `create-mr`,** offered when the diff
   exceeds `review.split_suggest_lines` (written into config, e.g. `800`) and
   available on request. The LLM proposes an ordered split (each chunk: title,
@@ -222,8 +210,23 @@ fail-loud as a rule.
   open as a stack, each targeting the previous chunk, with "part i of n" in the
   description.
 - **(b)** Split at design time instead: the plan becomes several stacked designs
-  and branches (I6).
+  and branches (I2).
 - **(c)** No split support; you split by hand.
 - **Cost if wrong:** (b) only helps when the size is known before implementing.
   (c) leaves the hardest MR to the user. (a) costs a `check` run per intermediate
   chunk, and a chunk that doesn't build sends you back to the split.
+
+### I5. The ticket at MR time
+- **(a) Recommended:** move the primary ticket to an "In Review"-type status with
+  the session's tracker tools; nothing else, as with `ticket-start`. Skipped when
+  the design has no `Primary:` line; a failure is stated in the output and the
+  summary, and the plugin continues.
+- **(b)** Also add the MR link as a ticket comment.
+- **(c)** Don't touch the ticket.
+- **Cost if wrong:** (b) adds a write omc refused at `ticket-start` (comments are
+  noise when the forge already links MRs to tickets by key). (c) leaves the ticket
+  "In Progress" while the MR waits for review.
+
+### I6. Incorporating MR review comments (next question group)
+- How publish is re-entered once comments arrive, how comments are triaged, and
+  how a change goes again through design, review, `ci-gate` and push.

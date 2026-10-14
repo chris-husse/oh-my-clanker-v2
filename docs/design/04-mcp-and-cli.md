@@ -85,6 +85,7 @@ omc update | uninstall | version
 omc design <repo-hint> "<seed>" [--claude|--codex] [--headless]
 omc implement [--claude|--codex] [--headless]
 omc review [--claude|--codex] [--headless]
+omc publish [--claude|--codex] [--headless]
 omc resume                                  # parked
 omc repo list
 omc repo add <ssh-url>
