@@ -62,3 +62,29 @@ document and removes it from this file.
   now that lifecycle working files live in `/tmp`.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
+
+## L. Testing (13-testing.md)
+
+### L1. When E2E tests are written, if implementation can't touch them
+- **(a) Recommended: together with the design change, before implementation.**
+  A feature starts as a change to `design/` plus its E2E tests in `e2e-tests/`
+  (red), reviewed and committed as one design change. Implementation then makes
+  them pass without touching either folder. A test that turns out wrong goes back
+  through a design change, never through the implementation branch.
+- **(b)** Written during implementation, but in a separate commit that a reviewer
+  approves before the code.
+- **Cost if wrong:** (b) lets the code and the tests that judge it come from the
+  same agent in the same branch, which is what the protection exists to stop. (a)
+  makes every test fix a design change, even a typo.
+
+### L2. Who enforces the protected folders
+- **(a) Recommended: omc itself, for any repo.** `repo.yaml` gets
+  `protected_paths` (this repo: `[design/, e2e-tests/]`). The implement, review
+  and publish lifecycles fail (in `commit`'s and `ci-gate`'s checks) when the
+  branch's diff against its base touches a protected path; only a design change
+  may. This repo's CI runs the same check, so a change made outside omc is caught
+  too.
+- **(b)** A rule for this repo only: `AGENTS.md` plus a CI check.
+- **Cost if wrong:** (b) leaves every other repo without the protection, and an
+  agent inside omc finds out only when CI fails after the push. (a) adds one
+  config key and one Python check.
