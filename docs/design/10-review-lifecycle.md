@@ -10,10 +10,8 @@
 - **Default pipeline:**
 
   ```yaml
-  review: [deviation-analysis, code-review, publish-gate, create-mr]
+  review: [deviation-analysis, code-review, ci-gate, create-mr]
   ```
-
-  `code-review`'s shape is still open (open-questions.md, I1).
 
 ## 10.2 `deviation-analysis`
 
@@ -21,25 +19,63 @@ Not a conformance review. A difference between the code and the design is not a
 defect by default: the implementing agent had a reason for it.
 
 - Identifies in what way the implementation differs from the design and the plan.
-- Every notable difference is judged.
-- If the agent can't rule reliably, the difference is escalated to you.
+- **Notable** means the difference changes behaviour, an interface, a data shape
+  or a stated constraint. Naming, file layout and internal structure are not
+  notable.
+- Every notable difference is judged. The agent first checks `<slug>-rulings.md`:
+  a deviation an implement ruling already explains is accepted, citing that
+  ruling.
+- Each one becomes an entry in the implement ledger's ruling format:
 
-What a judgment produces, and where it is recorded, is open (open-questions.md,
-I2).
+  ```
+  Deviation: <what differs> — <design/plan section> — <file:line>
+  Ruling: accepted|reverted|escalated — <why> — <cost if wrong>
+  ```
+
+  - **accepted:** code and design stay as they are;
+  - **reverted:** the agent judged the deviation wrong and fixes the code;
+  - **escalated:** the agent can't rule reliably, so it is put to you with
+    options and a recommendation, and your answer becomes the ruling.
+- All entries go to `<slug>-deviations.md`, committed next to the design, plan
+  and rulings under the design artifact root. The approved design is never
+  rewritten.
 
 ## 10.3 `code-review`
 
-Open (open-questions.md, I1).
+The read-only findings machinery from hardening (06-lifecycles.md §6.5), under a
+`review:code-review` hook.
 
-## 10.4 `publish-gate`
+- **omc's default contributions:**
+  - **`grug`** — v1's diff rules; behaviour-preserving fixes only;
+  - **`multi-agent-review`** — one review agent per changed area of the diff,
+    merged into one findings file.
+- **Project contributions** (e.g. hummingbird's coding convention and `hb-review`
+  rules) join by name, in the usual omc, global, repo order.
+- **Hooks never modify anything.** After each hook, Python checks that the
+  worktree's tracked files are unchanged; any change fails the skill.
+- The plugin merges the findings, applies them, asks you only when in doubt, and
+  writes waivers into `## Deliberate complexity`.
+- After a round: the round overview and whether to run another, with a
+  recommendation, as in hardening.
 
-The gate before the MR. Its job is `ci` (09-run-jobs.md §9.2): the job type whose
-purpose is to fail whenever the repo's CI would fail. Repos can't add job types of
-their own; everything their CI checks belongs in `ci`.
+## 10.4 `ci-gate`
 
-Open: the plugin's name (you suggested `ci-gate`) and whether it also runs the
-milestone gate's `check` and `e2e-tests` (open-questions.md, I3); whether a job
-that already passed on the identical tree is rerun (I4).
+The gate before the MR. It runs, in order, each with the usual fix loop
+(09-run-jobs.md §9.4):
+
+1. `omc run check`
+2. `omc run e2e-tests`
+3. `omc run ci` — the job whose purpose is to fail whenever the repo's CI would
+   fail (09-run-jobs.md §9.2). Repos can't add job types; everything else their
+   CI checks belongs in `ci`.
+
+- **Identical tree, no rerun.** A job whose last full pass ran on the identical
+  git tree is skipped with one line, e.g. *"e2e-tests: passed on this exact tree
+  at 14:02, skipped"* (09-run-jobs.md §9.4). Any change during review changes the
+  tree, so everything reruns. When review changed nothing, the milestone gate's
+  passes from implement carry over and only `ci` runs.
+- Rounds exhausted: the CRITICAL stop, as in `milestone-gate`
+  (08-implement-lifecycle.md §8.4); `create-mr` doesn't run.
 
 ## 10.5 `create-mr`
 
@@ -50,6 +86,11 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
 2. prepares a human-facing MR description;
 3. pushes.
 
-Its remaining details (rebase onto the latest base, opening the MR on the forge,
-the ticket transition, whether a separate `publish` lifecycle remains) are the
-next question group (open-questions.md, I5).
+Its remaining details are open (open-questions.md, I1–I5).
+
+## 10.6 Assumed (not yet confirmed)
+
+- `deviation-analysis` reverts and `code-review` fixes are committed on the branch
+  with descriptive messages as they are applied; `create-mr` squashes them.
+- `<slug>-deviations.md` is committed by Python at `deviation-analysis`'s `--done`,
+  the same way `<slug>-rulings.md` is.

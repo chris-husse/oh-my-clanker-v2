@@ -90,8 +90,11 @@ omc repo <repo> trust`, so an agent that requested the repo knows what to tell y
   `just setup`); it never installs system tools (02-repos-and-config.md).
 - It generates and validates the **test snippets** (09-run-jobs.md): framework
   inventory, injected failures per framework and all at once, targeted reruns.
-- `check` and E2E jobs refuse with *"not available: auto-integrate in progress
-  (validating jest snippets 2/4)"* until the repo is integrated.
+- It builds the **`ci` job** from the repo's CI configuration (GitLab CI, GitHub
+  workflows), covering what `check` and `e2e-tests` don't, so that `ci` fails
+  whenever the repo's CI would; it validates it in the scratch worktree.
+- `check`, E2E and `ci` jobs refuse with *"not available: auto-integrate in
+  progress (validating jest snippets 2/4)"* until the repo is integrated.
 - **E2E keep-alive** is the repo's own job: it must be implemented in the
   repository and wired into its hooks; omc can't do it generically. The
   integration sets `verify.keep_alive: true` in `repo.yaml` when the repo

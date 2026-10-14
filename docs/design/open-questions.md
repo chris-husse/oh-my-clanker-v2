@@ -147,78 +147,72 @@ fail-loud as a rule.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## I. Review lifecycle (10-review-lifecycle.md)
+## I. `create-mr` (10-review-lifecycle.md §10.5)
 
-### I1. How `code-review` works
-- **(a) Recommended: the read-only findings machinery from hardening, under a
-  `review:code-review` hook.** omc's default contributions: `grug` (v1's diff
-  rules, behaviour-preserving fixes only) and `multi-agent-review` (one agent per
-  changed area of the diff). Project contributions (e.g. hummingbird's coding
-  convention and `hb-review` rules) join by name. Python checks after each hook
-  that the worktree's tracked files are unchanged, and fails the skill if not. The
-  plugin merges the findings, applies them, asks you only when in doubt, and writes
-  waivers into `## Deliberate complexity`; round overview and the offer of another
-  round, as in hardening.
-- **(b)** One review pass with no hooks, as v1's `review` stage.
-- **Cost if wrong:** (b) leaves project review rules nowhere to plug in. Without
-  the worktree check, a "read-only" reviewer that edits code changes the branch
-  unnoticed. (a) costs one agent per changed area per round.
+### I1. Rebasing onto the latest base
+- **(a) Recommended: a `rebase` plugin first in the review pipeline**
+  (`review: [rebase, deviation-analysis, code-review, ci-gate, create-mr]`). Python
+  (`omc internal rebase`) fetches and rebases the branch onto `origin/<base>`; on
+  conflicts, the LLM resolves them and Python verifies none remain, else you are
+  asked. Review and the gate then see exactly the base that is pushed. If the base
+  moves after the gate, the MR's own CI catches it; omc doesn't rebase again.
+  The same command serves the parked `omc refresh`.
+- **(b)** `create-mr` rebases right before pushing.
+- **(c)** No rebase; the forge merges with the base.
+- **Cost if wrong:** (b) pushes a tree `ci-gate` never saw. (c) reviews and gates
+  against a stale base, so conflicts and breakages show up only on the MR. (a)
+  costs one plugin, and conflict resolution before any review.
 
-### I2. What a deviation judgment produces
-- **(a) Recommended:** each notable deviation becomes one entry
-  `Deviation: <what differs> — <design/plan section> — <file:line>`, followed by
-  a ruling in the implement ledger's format
-  `Ruling: accepted|reverted|escalated — <why> — <cost if wrong>`. The agent first
-  checks `<slug>-rulings.md`: a deviation an implement ruling already explains is
-  accepted citing that ruling. *Accepted* leaves code and design as they are;
-  *reverted* means the agent judged the deviation wrong and fixes the code;
-  *escalated* is put to you, with options and a recommendation. All entries go to
-  `<slug>-deviations.md`, committed next to the design (the approved design itself
-  is never rewritten). "Notable" means it changes behaviour, an interface, a data
-  shape, or a stated constraint; naming, file layout and internal structure are
-  not notable.
-- **(b)** Accepted deviations are written back into `<slug>.md` so the design
-  matches the code.
-- **(c)** Judgments stay in the session; only escalations reach you.
-- **Cost if wrong:** (b) rewrites the design you approved and loses what was
-  originally decided. (c) leaves no record of why the code differs from the
-  design. (a) adds one file per design.
+### I2. Squash and push
+- **(a) Recommended: Python does both** (`omc internal squash`,
+  `omc internal push`); the LLM only writes the text. The squash leaves one commit
+  on top of the base, whose message is the MR title plus a short body. The squash
+  keeps the tree identical, so `ci-gate`'s passes still hold. The push is
+  `--force-with-lease` to `origin/<branch>`, so a re-review after an earlier push
+  replaces the branch without clobbering commits someone else pushed.
+- **(b)** The LLM runs git itself, guided by the skill.
+- **Cost if wrong:** (b) is the v1 pattern that produced the moved-base squash
+  trap (a `reset --soft` against a base that moved mid-run). (a) costs two
+  `omc internal` commands.
 
-### I3. The CI gate's name and what it runs
-Decided: the gate's job is `ci`, and repos can't define other job types.
-- **Name.**
-  - **(a) Recommended:** rename the plugin `ci-gate`, as you suggested: it says
-    what it gates on.
-  - **(b)** Keep `publish-gate`.
-  - **Cost if wrong:** small; a rename later touches pipeline config and docs.
-- **What it runs.**
-  - **(a) Recommended:** `omc run check`, then `omc run e2e-tests`, then
-    `omc run ci`, in that order, each with the usual fix loop. `/auto-integrate`
-    builds `ci` from the repo's CI configuration (GitLab CI, GitHub workflows),
-    covering what `check` and `e2e-tests` don't, and validates it in the scratch
-    worktree.
-  - **(b)** Only `omc run ci`, which the repo makes a full superset of CI (build,
-    tests, E2E, lint, scans).
-  - **Cost if wrong:** (b) duplicates `check` and `e2e-tests` inside `ci`, and a
-    `ci` failure in a test gets the generic `ci` fix skill instead of the
-    test-specific one. (a) runs three jobs, but I4's identical-tree skip makes the
-    first two free when implement's milestone gate already passed on this tree.
+### I3. Opening the MR and its description
+- **(a) Recommended:** the LLM opens the MR (or updates the description of the
+  existing one) with whatever forge tools the session has (omc doesn't know the
+  forge, as with trackers), targeting `<base>`, ready for review, not draft. The
+  description is written for a human reviewer, from the design and the diff:
+  - **Summary:** what changes and why, in a few sentences;
+  - **Changes:** the notable changes, grouped;
+  - **Deviations from the design:** the accepted entries of
+    `<slug>-deviations.md`, one line each;
+  - **Testing:** the `ci-gate` results;
+  - **Links:** the primary and related tickets.
 
-### I4. Does `publish-gate` rerun a job that passed on the identical tree?
-- **(a) Recommended: no.** watch records the git tree hash of every full pass;
-  `publish-gate` skips a job whose last full pass was on the identical tree and
-  says so in one line ("e2e-tests: passed on this exact tree at 14:02, skipped").
-  Any change during review changes the tree, so everything affected reruns.
-- **(b)** Always rerun every job.
-- **Cost if wrong:** (b) spends a full E2E run (minutes, maybe an isolation slot)
-  re-proving an identical tree when review changed nothing. (a) won't catch a
-  flake that only fails on a second run; your rule is to debug flakes when they
-  fail, not hunt for them.
+  No internal omc paths, plugin names or `/tmp` links. If the MR can't be opened
+  (no forge tools, auth), the plugin says why in its output and again in the
+  summary, and prints the description for you to paste; the push has still
+  happened.
+- **(b)** Push only; you open the MR.
+- **(c)** Open it as a draft.
+- **Cost if wrong:** (b) leaves you a manual step on every branch. (c) needs a
+  second action from you before anyone reviews it. (a) asks reviewers to look as
+  soon as it opens.
 
-### I5. `create-mr` details (next question group)
-- Rebasing onto the latest base before `publish-gate`, so the gate runs on what
-  is pushed.
-- Opening the MR on the forge (with the session's forge tools) and the shape of
-  the human-facing description.
-- The ticket transition (e.g. → In Review).
-- Whether a separate `publish` lifecycle remains, now that `create-mr` pushes.
+### I4. The ticket at MR time
+- **(a) Recommended:** move the primary ticket to an "In Review"-type status with
+  the session's tracker tools; nothing else, as with `ticket-start`. Skipped when
+  the design has no `Primary:` line; a failure is stated in the output and the
+  summary, and the plugin continues.
+- **(b)** Also add the MR link as a ticket comment.
+- **(c)** Don't touch the ticket.
+- **Cost if wrong:** (b) adds a write omc refused at `ticket-start` (comments are
+  noise when the forge already links MRs to tickets by key). (c) leaves the ticket
+  "In Progress" while the MR waits for review.
+
+### I5. Does a separate `publish` lifecycle remain?
+- **(a) Recommended: no.** `create-mr` publishes, so the lifecycles are `design`,
+  `implement` and `review`. Addressing MR comments (`respond`) stays parked as its
+  own topic.
+- **(b)** Keep `publish` as a fourth lifecycle and move `create-mr` there.
+- **Cost if wrong:** (b) adds a lifecycle and a handoff between the gate and the
+  push for no new behaviour. (a) means `respond`, if it becomes a lifecycle,
+  is added later.
