@@ -147,54 +147,43 @@ fail-loud as a rule.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## I. Publish: incorporating MR review comments (11-publish-lifecycle.md)
+## I. Publish: incorporating MR review comments (11-publish-lifecycle.md §11.2)
 
-### I1. How publish is re-entered for comments
-- **(a) Recommended: a `triage-comments` plugin first in the publish pipeline**
-  (`publish: [triage-comments, rebase, ci-gate, create-mr]`), skipped when the
-  branch has no MR or no unresolved threads. You re-enter with `omc publish` in
-  the worktree or `/omc:publish` in a session (omc doesn't know the forge, so
-  nothing polls it). The LLM fetches the unresolved threads with the session's
-  forge tools and writes a triage: each thread, its classification (*question*:
-  reply only; *change*: needs work; *disagreement*: you decide), the recommended
-  response, and a drafted reply. Only an explicit yes to the triage moves on.
-- **(b)** A separate `respond` lifecycle.
-- **(c)** No support; you relay comments into a session yourself.
-- **Cost if wrong:** (b) adds a fifth lifecycle whose plugins are mostly
-  publish's. (c) is the manual step you want gone. (a) runs one skipped plugin on
-  every first publish.
+### I1. How comments reach brainstorming, and what follows
+- **(a) Recommended:** `triage-comments` collects the unresolved threads (id,
+  author, `file:line`, text) into a comments seed, and the orchestrator hands over
+  to the design lifecycle **from `superpowers-brainstorm`**, with the seed and the
+  committed design as context (`explain-seed` is skipped: the context exists).
+  Brainstorming's own classification decides the path:
+  - **full design:** a feedback design through `design-hardening`,
+    `write-implementation-plan`, `approve-design`; then implement, review,
+    publish;
+  - **not worth a full design:** brainstorming still writes the (short)
+    document; `design-hardening` is skipped; `write-implementation-plan` and
+    `approve-design` still run, because implement needs a plan; then implement,
+    review, publish;
+  - **no code change** (every thread is answered by an explanation): straight
+    to `create-mr`, which posts the replies.
+- **(b)** The "not worth a full design" path skips the plan and implement too:
+  the brainstorming session's agent makes the change, then review and publish.
+- **Cost if wrong:** (b) builds code with no plan and without implement's task
+  review loop. (a) writes a short plan even for a one-line change.
 
-### I2. How a change requested in a comment gets built
-- **(a) Recommended: by size, decided in the triage.** *Small* changes (local,
-  no design impact) are fixed inside publish by a subagent at the `Complexity:`
-  the triage assigns, then go through `code-review` and `ci-gate`. *Substantive*
-  changes start a **feedback round** through the lifecycles: a feedback design
-  `<slug>-feedback-<n>.md` with its plan (design lifecycle from
-  `superpowers-brainstorm`, seeded with the threads), then implement, review, and
-  publish again. The approved design is never rewritten.
-- **(b)** Always a feedback round through every lifecycle.
-- **(c)** Always fixed inside publish, with no design.
-- **Cost if wrong:** (b) sends a one-line rename through brainstorming and
-  hardening. (c) builds design-level changes nobody designed. (a) depends on the
-  triage's size call, which you confirm.
+### I2. Where a round's decisions are recorded
+- **(a) Recommended:** a feedback design `<slug>-feedback-<n>.md` (with
+  `<slug>-feedback-<n>-plan.md` when there is code to change), committed next to
+  the design. Brainstorming records one decision per thread,
+  `Thread <id>: <decision> — <why>`, which the replies are generated from. The
+  approved design is never rewritten; the next review's `deviation-analysis`
+  compares against the design and every feedback design.
+- **(b)** Append a `## Feedback round <n>` section to `<slug>.md`.
+- **Cost if wrong:** (b) rewrites the approved design, against the rule set for
+  deviations. Without the per-thread lines, replies have nothing exact to be
+  generated from. (a) adds files per round.
 
-### I3. Replies on the forge
-- **(a) Recommended:** the drafted replies are approved with the triage and
-  posted by the LLM after the push, each saying what changed (with the commit) or
-  answering the question. omc never resolves a thread; the reviewer does.
-- **(b)** omc posts nothing; you reply.
-- **(c)** Post and resolve threads.
-- **Cost if wrong:** (b) leaves every thread for you to answer. (c) closes
-  threads the reviewer may not agree are done. (a) posts under your account, but
-  only text you approved.
-
-### I4. Squash on later pushes
-- **(a) Recommended: squash only on the first push.** Feedback rounds push new
-  commits on top (`review: <what>`), with a plain push (no force), so reviewers
-  see exactly what changed since their review; the final squash is the forge's
-  squash-merge. A rebase in a feedback round (a moved base) still needs
-  `--force-with-lease`; the MR description says so.
-- **(b)** Squash and force-push on every round.
-- **Cost if wrong:** (b) breaks the reviewer's "changes since last review" view
-  on forges that don't keep versions. (a) leaves several commits on the MR until
-  merge.
+### I3. Resolving threads
+- **(a) Recommended:** omc posts the reply and never resolves a thread; the
+  reviewer does.
+- **(b)** Resolve every thread whose decision was implemented.
+- **Cost if wrong:** (b) closes threads the reviewer may not consider done. (a)
+  leaves resolving to reviewers.

@@ -82,7 +82,7 @@ omc run <type> → poll status ──passed──▶ done
   so a build continues where it left off.
 - **Tree hash of every pass:** watch records the git tree hash of every full
   pass per worktree and job type. A gate may skip a job whose last full pass ran
-  on the identical tree (`ci-gate`, 10-review-lifecycle.md §10.4).
+  on the identical tree (`ci-gate`, 10-review-lifecycle.md §10.5).
 - **No bypass:** a job passes only when every test passes in a full run. There are
   no baseline failures, known-failure lists or skip flags. A red test is a local
   machine problem or a flaky test, and either way it gets fixed. Only Python writes

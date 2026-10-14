@@ -17,11 +17,29 @@ Creating, splitting, pushing and updating MRs is the publish lifecycle's job
   review: [rebase, deviation-analysis, code-review, ci-gate]
   ```
 
-  `rebase` is shared with publish (11-publish-lifecycle.md §11.2): review judges
-  and gates the branch on its current base.
+  Review judges and gates the branch on its current base. Publish doesn't rebase
+  or gate again (11-publish-lifecycle.md): if the base moves between review and
+  publish, the MR's own CI catches it.
 - After `ci-gate`, the lifecycle orchestrator states how to continue to publish.
 
-## 10.2 `deviation-analysis`
+## 10.2 `rebase`
+
+The same command serves the parked `omc refresh`.
+
+- **Python** (`omc internal rebase --base <branch>`) fetches and rebases the
+  branch onto its base. The plugin passes the base explicitly: the branch named in
+  session memory (12-session-memory.md) when there is one, else the repo's `base`.
+  Python checks that the branch exists.
+- **Conflicts:** the LLM resolves them; Python verifies none remain, else you are
+  asked.
+- Already on the latest base: a no-op, and the tree is unchanged.
+- **Stacked branches:** Python keeps the parent tip it last rebased onto in the
+  branch's cache folder and rebases with
+  `git rebase --onto <parent's new tip> <last parent tip>`, because the parent's
+  own squash rewrites its commits. Once the parent is merged, the base is the
+  repo's `base` again (the same `--onto`), and `create-mr` retargets the MR there.
+
+## 10.3 `deviation-analysis`
 
 Not a conformance review. A difference between the code and the design is not a
 defect by default: the implementing agent had a reason for it.
@@ -48,7 +66,7 @@ defect by default: the implementing agent had a reason for it.
   and rulings under the design artifact root. The approved design is never
   rewritten.
 
-## 10.3 `code-review`
+## 10.4 `code-review`
 
 The read-only findings machinery from hardening (06-lifecycles.md §6.5), under a
 `review:code-review` hook.
@@ -66,7 +84,7 @@ The read-only findings machinery from hardening (06-lifecycles.md §6.5), under 
 - After a round: the round overview and whether to run another, with a
   recommendation, as in hardening.
 
-## 10.4 `ci-gate`
+## 10.5 `ci-gate`
 
 The gate before the MR. It runs, in order, each with the usual fix loop
 (09-run-jobs.md §9.4):
@@ -84,9 +102,8 @@ The gate before the MR. It runs, in order, each with the usual fix loop
   passes from implement carry over and only `ci` runs.
 - Rounds exhausted: the CRITICAL stop, as in `milestone-gate`
   (08-implement-lifecycle.md §8.4); the orchestrator states no continuation.
-- The publish lifecycle reuses `ci-gate` (11-publish-lifecycle.md).
 
-## 10.5 Assumed (not yet confirmed)
+## 10.6 Assumed (not yet confirmed)
 
 - `deviation-analysis` reverts and `code-review` fixes are committed on the branch
   with descriptive messages as they are applied; publish's `create-mr` squashes

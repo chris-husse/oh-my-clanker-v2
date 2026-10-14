@@ -10,54 +10,45 @@ built and meets the quality gates.
 ## 11.1 Shape
 
 - **Entry:** the review orchestrator's continuation, or `omc publish
-  [--claude|--codex]` for a fresh session in the worktree.
-- **Default pipeline** for creating the MR:
+  [--claude|--codex]` (or `/omc:publish`) in the worktree.
+- **Default pipeline:**
 
   ```yaml
-  publish: [rebase, ci-gate, create-mr]
+  publish: [triage-comments, create-mr]
   ```
 
-  `ci-gate` is review's (10-review-lifecycle.md §10.4). When review left the
-  branch on the latest base, `rebase` changes nothing and `ci-gate` skips every
-  job (identical tree). If the base moved since review, the rebased tree is gated
-  again before anything is pushed.
-- Incorporating review comments is open (open-questions.md, I1–I4).
+## 11.2 `triage-comments`
 
-## 11.2 `rebase`
-
-Shared by review and publish; the same command serves the parked `omc refresh`.
-
-- **Python** (`omc internal rebase --base <branch>`) fetches and rebases the
-  branch onto its base. The plugin passes the base explicitly: the branch named in
-  session memory (12-session-memory.md) when there is one, else the repo's `base`.
-  Python checks that the branch exists.
-- **Conflicts:** the LLM resolves them; Python verifies none remain, else you are
-  asked.
-- Already on the latest base: a no-op, and the tree is unchanged.
-- **Stacked branches:** Python keeps the parent tip it last rebased onto in the
-  branch's cache folder and rebases with
-  `git rebase --onto <parent's new tip> <last parent tip>`, because the parent's
-  own squash rewrites its commits. Once the parent is merged, the base is the
-  repo's `base` again (the same `--onto`), and `create-mr` retargets the MR there.
+- Detects whether the branch has an MR and whether it has review comments, with
+  the session's forge tools.
+- **No MR, or no comments:** straight to `create-mr`. Rebase, review and the CI
+  gate were already done in review.
+- **Comments:** they go to **brainstorming** (`superpowers-brainstorm`), which
+  already classifies the work and decides whether it is worth a full design or
+  not. The decisions made in that brainstorming are what the MR's replies are
+  generated from (§11.3).
+- How the comments flow through brainstorming and back to `create-mr` is open
+  (open-questions.md, I1–I2).
 
 ## 11.3 `create-mr`
 
 Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
 `create-mr`:
 
-1. squashes the branch;
+1. squashes the branch, **always**, including after a round of comments;
 2. prepares a human-facing MR description;
 3. pushes;
-4. opens the MR.
+4. opens the MR, or, when one already exists for the branch, detects it and
+   updates it instead;
+5. after a round of comments, posts the replies (below).
 
 - **Squash and push are Python** (`omc internal squash`, `omc internal push`), with
   an **LLM fallback** when either fails: the LLM gets the command's error and
   resolves it.
   - The squash leaves one commit on top of the base; its message is the MR title
     plus a short body. The tree stays identical, so `ci-gate`'s passes still hold.
-  - The push is `--force-with-lease` to `origin/<branch>`, so a re-review after an
-    earlier push replaces the branch without clobbering commits someone else
-    pushed.
+  - The push is `--force-with-lease` to `origin/<branch>`, so a later round
+    replaces the branch without clobbering commits someone else pushed.
 - **The MR** is opened (or, if one exists, its description updated) by the LLM
   with whatever forge tools the session has; omc doesn't know the forge. It
   targets the branch's base and opens ready for review, not as a draft.
@@ -80,7 +71,11 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
   output and again in the summary, and continues.
 - **Not always on `main`:** a branch can be based on another local worktree's
   branch. That intent is never fixed at design time; it comes from the branch's
-  session memory (12-session-memory.md), whenever you said it (§11.2).
+  session memory (12-session-memory.md), whenever you said it; `rebase`
+  (10-review-lifecycle.md §10.2) follows it.
+- **Replies to comments** are generated automatically from the decisions made in
+  the brainstorming of those comments, and posted to their threads. They are not
+  drafted for your approval.
 
 ## 11.4 Splitting a huge MR
 
@@ -105,3 +100,7 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
   `origin/<branch>` at local `HEAD`. A failed verification fails the skill. The
   fallback never uses a plain `--force`.
 - Publish uses the `review` model block in local config.
+- omc doesn't know the forge, so nothing polls it for comments; publish is
+  re-entered (`omc publish` or `/omc:publish`) when there are some.
+- On an update, the MR description is regenerated for the whole branch, and the
+  ticket move is a no-op when it is already "In Review".
