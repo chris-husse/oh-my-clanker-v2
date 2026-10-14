@@ -21,6 +21,7 @@ in [open-questions.md](open-questions.md), with its full options.
 | 7 | [07-design-lifecycle.md](07-design-lifecycle.md) | `omc design` and every design plugin |
 | 8 | [08-implement-lifecycle.md](08-implement-lifecycle.md) | The implement lifecycle and its plugins |
 | 9 | [09-run-jobs.md](09-run-jobs.md) | `omc run`: check and E2E jobs, the fix loop, test snippets |
+| 10 | [10-review-lifecycle.md](10-review-lifecycle.md) | The review lifecycle: deviation analysis, code review, publish gate, MR |
 | — | [open-questions.md](open-questions.md) | Every open and parked question, in full |
 
 ## Naming
