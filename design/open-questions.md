@@ -84,18 +84,18 @@ document and removes it from this file.
   plan's text, and review catches a violation after the fact. (a) adds a short
   block to implement's skills when the flag is on.
 
-### L3. How a task's E2E tests square with "implementation can't modify `e2e-tests/`"
-- **(a) Recommended: tests first, in their own commit.** Each task's first step
-  writes its E2E tests (red), citing the design facts, committed alone. The
-  task's implementation steps may not touch `e2e-tests/`; if a test is wrong, the
-  task stops and asks you instead of editing it. Review checks that no later
-  commit changed the tests.
-- **(b)** Separate test tasks, written by a different agent before the
-  implementation tasks they cover.
-- **(c)** The protection covers `design/` only; tasks write tests and code freely.
-- **Cost if wrong:** (c) lets the code's author adjust the tests that judge it.
-  (b) doubles the task count. (a) relies on review to spot a test edited
-  mid-task, since nothing enforces it yet.
+### L3. When you approve the nature of an E2E change
+- **(a) Recommended: up front in the plan, and mid-task only for surprises.** With
+  the workflow on, `write-implementation-plan` lists for each task the E2E tests it
+  adds or changes, in spirit form: what it tests, why it is needed, which design
+  facts it verifies, plus any `design/` change in tandem. Your yes at
+  `approve-design` approves those. During implementation, a test or design change
+  that isn't in the plan stops the task with one question in the same form; review
+  checks each E2E change in the diff against the plan's approved list.
+- **(b)** Ask at each change, whenever it happens.
+- **Cost if wrong:** (b) interrupts implementation, which otherwise runs without
+  check-ins, for every planned test. With (a), a change that slips past the
+  mid-task stop is caught only in review.
 
 ### L4. How E2E tests point to design facts
 - **(a) Recommended: a stable ID per design fact,** written visibly at the end of

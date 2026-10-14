@@ -7,13 +7,18 @@ v1 was thin on testing. v2 tests everything, end to end.
 A critical workflow fork of omc v2, **off by default**, for new projects
 developed from the ground up this way (this repo is the first, as a prototype).
 
-- **The rules:**
-  - two protected folders: `design/` (the high-level design) and `e2e-tests/`;
-    an implementation change may not modify either;
-  - `e2e-tests/` codifies the design: if it isn't in `design/`, it can't be in
+- **The rules (the protection layer):**
+  - `design/` (the high-level design) and `e2e-tests/` are tied together.
+    `e2e-tests/` codifies the design: if it isn't in `design/`, it can't be in
     `e2e-tests/`; if it isn't in `e2e-tests/`, it isn't a feature;
   - every feature has E2E tests, and therefore a design artifact in `design/`;
-  - every E2E test points clearly to the design facts it exercises.
+  - every E2E test points clearly to the design facts it exercises;
+  - **an implementation may change E2E tests, but only within the confines of the
+    design:** no E2E test without a design artifact, and no change that makes an
+    E2E test diverge from the design without your explicit approval;
+  - **design and E2E tests change only in tandem, and only with your approval of
+    the nature of the change:** what it tests, why it is needed, and which design
+    part it verifies. You never approve test code; this is about the spirit.
 - `design/` holds the high-level design artifacts. Per-feature designs made by
   the design lifecycle (superpowers-based) live in `docs/design/`
   (`design_artifact_root: repository`, `design_artifact_directory: docs/design`).
