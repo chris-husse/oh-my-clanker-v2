@@ -27,8 +27,30 @@ built and meets the quality gates.
   already classifies the work and decides whether it is worth a full design or
   not. The decisions made in that brainstorming are what the MR's replies are
   generated from (§11.3).
-- How the comments flow through brainstorming and back to `create-mr` is open
-  (open-questions.md, I1–I2).
+- **The comments seed:** one entry per unresolved thread, never the raw text:
+  - the **interpreted version** of the comment: what the reviewer is asking for,
+    across all its lines and replies, in the triage agent's words;
+  - where it applies: a file and line range, or the MR as a whole;
+  - the **link** to the comment, so brainstorming can check it when something is
+    unclear or a bigger discussion is going on, and dive deep as needed.
+- **The hand-over:** the orchestrator hands over to the design lifecycle **from
+  `superpowers-brainstorm`**, with the seed and the committed design as context
+  (`explain-seed` is skipped: the context exists). Brainstorming's classification
+  picks the path:
+  - **full design:** a feedback design through `design-hardening`,
+    `write-implementation-plan` and `approve-design`; then implement, review,
+    publish;
+  - **not worth a full design:** brainstorming still writes the (short)
+    document; `design-hardening` is skipped; `write-implementation-plan` and
+    `approve-design` still run, because implement needs a plan; then implement,
+    review, publish;
+  - **no code change** (every thread is answered by an explanation): straight to
+    `create-mr`, which posts the replies.
+- **The record:** a feedback design `<slug>-feedback-<n>.md` (with
+  `<slug>-feedback-<n>-plan.md` when code changes), committed next to the design.
+  Brainstorming records one decision per thread,
+  `Thread <id>: <decision> — <why>`, which the replies are generated from. The
+  approved design is never rewritten.
 
 ## 11.3 `create-mr`
 
@@ -73,9 +95,10 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
   branch. That intent is never fixed at design time; it comes from the branch's
   session memory (12-session-memory.md), whenever you said it; `rebase`
   (10-review-lifecycle.md §10.2) follows it.
-- **Replies to comments** are generated automatically from the decisions made in
-  the brainstorming of those comments, and posted to their threads. They are not
-  drafted for your approval.
+- **Replies to comments** are generated automatically from the `Thread <id>:`
+  decisions made in the brainstorming of those comments, and posted to their
+  threads. They are not drafted for your approval. omc never resolves a thread;
+  the reviewer does.
 
 ## 11.4 Splitting a huge MR
 

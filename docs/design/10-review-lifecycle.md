@@ -44,7 +44,8 @@ The same command serves the parked `omc refresh`.
 Not a conformance review. A difference between the code and the design is not a
 defect by default: the implementing agent had a reason for it.
 
-- Identifies in what way the implementation differs from the design and the plan.
+- Identifies in what way the implementation differs from the design and the plan,
+  and from every feedback design and plan (11-publish-lifecycle.md §11.2).
 - **Notable** means the difference changes behaviour, an interface, a data shape
   or a stated constraint. Naming, file layout and internal structure are not
   notable.

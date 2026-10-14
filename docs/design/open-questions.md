@@ -134,8 +134,8 @@ fail-loud as a rule.
 
 ## H. Parked topics (not yet formulated as questions)
 
-- **`respond`:** addressing MR review comments after publish.
-- **`omc refresh`:** rebasing a worktree onto base mid-work (v1's `rebase-main`).
+`omc refresh` is now formulated (section K).
+
 - **`/investigate`:** scope, now that the ops survey gives it data.
 - **`omc resume`:** detect the lifecycle stage, recreate the worktree, re-enter.
 - **`/explain`:** whether a user-facing explain skill exists outside the design
@@ -147,43 +147,27 @@ fail-loud as a rule.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## I. Publish: incorporating MR review comments (11-publish-lifecycle.md §11.2)
+## K. `omc refresh`: rebasing a worktree mid-work
 
-### I1. How comments reach brainstorming, and what follows
-- **(a) Recommended:** `triage-comments` collects the unresolved threads (id,
-  author, `file:line`, text) into a comments seed, and the orchestrator hands over
-  to the design lifecycle **from `superpowers-brainstorm`**, with the seed and the
-  committed design as context (`explain-seed` is skipped: the context exists).
-  Brainstorming's own classification decides the path:
-  - **full design:** a feedback design through `design-hardening`,
-    `write-implementation-plan`, `approve-design`; then implement, review,
-    publish;
-  - **not worth a full design:** brainstorming still writes the (short)
-    document; `design-hardening` is skipped; `write-implementation-plan` and
-    `approve-design` still run, because implement needs a plan; then implement,
-    review, publish;
-  - **no code change** (every thread is answered by an explanation): straight
-    to `create-mr`, which posts the replies.
-- **(b)** The "not worth a full design" path skips the plan and implement too:
-  the brainstorming session's agent makes the change, then review and publish.
-- **Cost if wrong:** (b) builds code with no plan and without implement's task
-  review loop. (a) writes a short plan even for a one-line change.
+### K1. What it is
+- **(a) Recommended:** a user-facing `/omc:refresh` skill (and `omc refresh` in the
+  shell, which opens it in the worktree's session provider) that runs the same
+  `omc internal rebase --base <branch>` as review's `rebase` plugin
+  (10-review-lifecycle.md §10.2): base from session memory, else the repo's
+  `base`; the LLM resolves conflicts and Python verifies none remain; then a full
+  `omc run check` with the usual fix loop.
+- **(b)** The rebase alone, with no check afterwards.
+- **(c)** No refresh; the branch is rebased only in review.
+- **Cost if wrong:** (b) leaves a broken build after a rebase unnoticed until the
+  next task's check, which then fixes someone else's breakage as if it were its
+  own. (c) blocks a branch that needs a fix just merged into the base. (a) costs
+  one check run per refresh.
 
-### I2. Where a round's decisions are recorded
-- **(a) Recommended:** a feedback design `<slug>-feedback-<n>.md` (with
-  `<slug>-feedback-<n>-plan.md` when there is code to change), committed next to
-  the design. Brainstorming records one decision per thread,
-  `Thread <id>: <decision> — <why>`, which the replies are generated from. The
-  approved design is never rewritten; the next review's `deviation-analysis`
-  compares against the design and every feedback design.
-- **(b)** Append a `## Feedback round <n>` section to `<slug>.md`.
-- **Cost if wrong:** (b) rewrites the approved design, against the rule set for
-  deviations. Without the per-thread lines, replies have nothing exact to be
-  generated from. (a) adds files per round.
-
-### I3. Resolving threads
-- **(a) Recommended:** omc posts the reply and never resolves a thread; the
-  reviewer does.
-- **(b)** Resolve every thread whose decision was implemented.
-- **Cost if wrong:** (b) closes threads the reviewer may not consider done. (a)
-  leaves resolving to reviewers.
+### K2. Uncommitted work and running jobs
+- **(a) Recommended:** like every `omc run`, refresh first kills whatever runs for
+  the worktree. Uncommitted work is kept with `git rebase --autostash`; if
+  re-applying it conflicts, the LLM resolves it, and nothing is ever discarded.
+- **(b)** Refuse while the tree is dirty or a job runs, naming what to do.
+- **Cost if wrong:** (b) stops an LLM mid-task for something it could handle. (a)
+  can leave a conflict inside uncommitted work, which the LLM then has to resolve
+  correctly.
