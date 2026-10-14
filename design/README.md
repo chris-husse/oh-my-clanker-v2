@@ -4,7 +4,7 @@ omc v2 is a from-scratch rearchitecture of oh-my-clanker. v1 (the `oh-my-clanker
 repo) is evidence to borrow from, not a template. Its reference write-up lives in
 the v1 repo (`docs/v1-reference/omc-v1-design.md`), never here.
 
-This folder holds only the v2 design. It is written as the design discussion
+This folder (`design/`) holds only the v2 high-level design; it is protected (13-testing.md). Per-feature designs live in `docs/design/`. It is written as the design discussion
 goes, and every settled decision is recorded here. Anything not yet decided is
 in [open-questions.md](open-questions.md), with its full options.
 
@@ -24,6 +24,7 @@ in [open-questions.md](open-questions.md), with its full options.
 | 10 | [10-review-lifecycle.md](10-review-lifecycle.md) | The review lifecycle: deviation analysis, code review, the CI gate |
 | 11 | [11-publish-lifecycle.md](11-publish-lifecycle.md) | The publish lifecycle: creating, splitting and pushing MRs, review comments |
 | 12 | [12-session-memory.md](12-session-memory.md) | Per-branch memory: `omc memory add`, injection, retention |
+| 13 | [13-testing.md](13-testing.md) | Protected `design/` and `e2e-tests/`, E2E tests in Docker on the four test repos |
 | — | [open-questions.md](open-questions.md) | Every open and parked question, in full |
 
 ## Naming
