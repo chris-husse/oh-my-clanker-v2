@@ -24,7 +24,9 @@ Creating, splitting, pushing and updating MRs is the publish lifecycle's job
 
 ## 10.2 `rebase`
 
-The same command serves the parked `omc refresh`.
+There is no separate refresh command. Mid-work (during design or implement),
+when a branch needs something just merged into its base, the LLM calls the same
+`omc internal rebase --base <branch>` directly when asked to.
 
 - **Python** (`omc internal rebase --base <branch>`) fetches and rebases the
   branch onto its base. The plugin passes the base explicitly: the branch named in

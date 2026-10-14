@@ -134,8 +134,6 @@ fail-loud as a rule.
 
 ## H. Parked topics (not yet formulated as questions)
 
-`omc refresh` is now formulated (section K).
-
 - **`/investigate`:** scope, now that the ops survey gives it data.
 - **`omc resume`:** detect the lifecycle stage, recreate the worktree, re-enter.
 - **`/explain`:** whether a user-facing explain skill exists outside the design
@@ -146,28 +144,3 @@ fail-loud as a rule.
   now that lifecycle working files live in `/tmp`.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
-
-## K. `omc refresh`: rebasing a worktree mid-work
-
-### K1. What it is
-- **(a) Recommended:** a user-facing `/omc:refresh` skill (and `omc refresh` in the
-  shell, which opens it in the worktree's session provider) that runs the same
-  `omc internal rebase --base <branch>` as review's `rebase` plugin
-  (10-review-lifecycle.md §10.2): base from session memory, else the repo's
-  `base`; the LLM resolves conflicts and Python verifies none remain; then a full
-  `omc run check` with the usual fix loop.
-- **(b)** The rebase alone, with no check afterwards.
-- **(c)** No refresh; the branch is rebased only in review.
-- **Cost if wrong:** (b) leaves a broken build after a rebase unnoticed until the
-  next task's check, which then fixes someone else's breakage as if it were its
-  own. (c) blocks a branch that needs a fix just merged into the base. (a) costs
-  one check run per refresh.
-
-### K2. Uncommitted work and running jobs
-- **(a) Recommended:** like every `omc run`, refresh first kills whatever runs for
-  the worktree. Uncommitted work is kept with `git rebase --autostash`; if
-  re-applying it conflicts, the LLM resolves it, and nothing is ever discarded.
-- **(b)** Refuse while the tree is dirty or a job runs, naming what to do.
-- **Cost if wrong:** (b) stops an LLM mid-task for something it could handle. (a)
-  can leave a conflict inside uncommitted work, which the LLM then has to resolve
-  correctly.
