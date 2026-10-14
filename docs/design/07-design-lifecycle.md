@@ -35,11 +35,12 @@ be run from the console or inlined in skills. `omc design` calls them in order.
 ## 7.2 Default pipeline
 
 ```yaml
-design: [explain-seed, superpowers-brainstorm, pocock-grilling-with-docs,
-         design-hardening, write-implementation-plan, approve-design]
+design: [explain-seed, superpowers-brainstorm, design-hardening,
+         write-implementation-plan, approve-design]
 ```
 
-`pocock-grilling-with-docs` is parked (open-questions.md). There is no
+`pocock-grilling-with-docs` is not in the default pipeline while its questions
+are parked (open-questions.md, B); it can be added back through config. There is no
 `design-review` plugin; it was replaced by `write-implementation-plan`.
 
 ## 7.3 `explain-seed`
@@ -108,7 +109,7 @@ design: [explain-seed, superpowers-brainstorm, pocock-grilling-with-docs,
     recommendation, the cost of choosing wrong;
   - unanswered questions stay open and are listed again in full, never compressed.
 - **End condition:** once no question is open, the plugin asks *"The design is
-  complete. Move on to grilling?"* Only an explicit yes to that question runs
+  complete. Move on to hardening?"* Only an explicit yes to that question runs
   `--done`. A bare "ok" to another question doesn't count.
 - No hooks.
 

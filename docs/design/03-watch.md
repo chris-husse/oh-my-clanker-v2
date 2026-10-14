@@ -66,8 +66,10 @@ Reads code only, so it needs no trust:
   exist and links to logs, metrics, databases, hosts and anything else useful for
   investigations. **Names and links only, never credentials.**
 
-A repo becomes queryable once GitNexus and these surveys are done. Whether
-`/auto-index` also generates the GitNexus wiki is open (open-questions.md).
+A repo becomes queryable once GitNexus and these surveys are done.
+`/auto-index` does **not** generate the GitNexus wiki: the wiki stays opt-in per
+repo (`documentation: false`) and follows the interval and daily-check rules
+(§3.7).
 
 ### Trust
 
@@ -141,6 +143,13 @@ the same when `GITNEXUS_ATOMIC_INCREMENTAL=1` is set.
   real repo and asserts every query succeeds with either the old or the new result.
 
 ## 3.6 Scheduling
+
+omc schedules everything itself and doesn't use GitNexus's own `gitnexus watch`:
+omc needs per-piece locks, setup states, trust and `/auto-integrate` before
+builds, while `gitnexus watch` keeps its own pid and mutex files under
+`GITNEXUS_HOME` and only allows github.com, gitlab.com and gitee.com remotes
+unless allowlisted. Two watch processes with separate locks is the hidden state
+that drove most of v1's churn.
 
 - **One global limit, `watch.max_parallel_jobs: 10`** (local config), shared by
   every job type: run jobs, indexing, docs generation, `/auto-integrate`. There

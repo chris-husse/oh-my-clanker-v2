@@ -63,7 +63,10 @@ Constraints this design respects:
   uncertain goes to `<error>`: a timeout (`facts.timeout_seconds`), exit 0 with
   invalid JSON or no `outcome`, a non-zero exit with no `error` field. omc builds
   the message itself in those cases (e.g. *"fact timed out after 10s"*).
-- **Branches are optional.** A missing branch inlines nothing. No `!` operator is
+- **Branches are optional.** A missing branch inlines nothing, including a
+  missing `<error>` branch: the error is logged and nothing is inlined. Authors
+  who need errors handled write an `<error>` branch; omc's own skill text always
+  does. No `!` operator is
   needed; content only in `<false>` inverts.
 - **Lazy evaluation:** a fact runs only when rendering reaches its `<match>`.
   Matches nest, and facts inside a branch not taken never run. Within one render,

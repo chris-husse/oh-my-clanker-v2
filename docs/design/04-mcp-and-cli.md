@@ -28,7 +28,7 @@ Commands that work without watch stay local: `watch`, `configure`, `update`,
 | `repo_list` | `omc repo list` | One line per known repo: key, setup state, indexed commit vs tip, docs on/off |
 | `repo_add(ssh_url)` | `omc internal add-repo <ssh-url>` | Registers the repo (creates `repos/<key>/repo.yaml`, commits it), queues setup and returns a job ID at once. Adding a known repo returns a job that reports its state |
 | `repo_add_poll(job_id)` | `omc internal add-repo --poll <job-id>` | Waits up to a minute, then returns the repo's info (key, setup state, indexed commit) or a pending info with watch's current checklist |
-| `gitnexus(repo, verb, args)` | `omc repo <repo> gitnexus <verb> …` | `query`, `context`, `impact`, `cypher` against the repo's index (tool granularity is open) |
+| `gitnexus(repo, verb, args)` | `omc repo <repo> gitnexus <verb> …` | `query`, `context`, `impact`, `cypher` against the repo's index (one tool with a `verb`, so one schema per turn instead of four) |
 | `docs_grep(repo, …, scope)` | `omc repo <repo> docs-grep …` | Searches the configured docs context (4.4) |
 | `worktree_create(repo, slug)` | `omc repo <repo> worktree create <slug>` | Creates the branch from `origin/<base>` under `<worktree_location>/<repo-key>/<slug>` |
 
@@ -58,9 +58,11 @@ Commands that work without watch stay local: `watch`, `configure`, `update`,
   cache paths never reach a session: `hummingbird-bridge-1a2b3c4d:docs/ingestion.md:42: …`,
   `wiki:hummingbird-bridge-1a2b3c4d/alerts.md:7: …`, `global:knowledge/release.md:3: …`.
 - Takes a read lock on each searched repo's `docs` piece.
-- The search engine and how the LLM passes search arguments are open
-  (open-questions.md). Raw flag passthrough is ruled out for security
-  (01-principles.md).
+- **ripgrep, run by watch with typed parameters only:** `pattern`, `glob`,
+  `ignore_case`, `context` (0–5), `files_only`. omc builds the argv itself, with
+  no shell. Raw flag passthrough is ruled out: LLM arguments are untrusted under
+  prompt injection, and rg `--pre` / ugrep `--filter` would run arbitrary code.
+  Behind typed parameters the engine can be swapped later.
 
 ## 4.5 Output cap for all tool output
 
@@ -101,7 +103,8 @@ omc lifecycle <lifecycle> [--<plugin> | --done <plugin> | --from <plugin>]
 omc hooks --help | --list
 omc hooks <lifecycle> <hook>
 omc run <job-type> [--test <selector>]
-omc run <job-type> --job-id <id> [status|logs|stop]
+omc run <job-type> --poll <job-id>
+omc run <job-type> --job-id <id> logs|stop
 ```
 
 There is no user-facing `omc install`. Bootstrapping after `uv tool install` goes
