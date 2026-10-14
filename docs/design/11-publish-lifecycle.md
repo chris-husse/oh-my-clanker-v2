@@ -21,7 +21,7 @@ built and meets the quality gates.
   branch on the latest base, `rebase` changes nothing and `ci-gate` skips every
   job (identical tree). If the base moved since review, the rebased tree is gated
   again before anything is pushed.
-- Incorporating review comments is open (open-questions.md, I6).
+- Incorporating review comments is open (open-questions.md, I1–I4).
 
 ## 11.2 `rebase`
 
