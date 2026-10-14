@@ -17,6 +17,7 @@ Creating, splitting, pushing and updating MRs is the publish lifecycle's job
   review: [deviation-analysis, code-review, ci-gate]
   ```
 
+  Whether a `rebase` plugin comes first is open (open-questions.md, I1).
 - After `ci-gate`, the lifecycle orchestrator states how to continue to publish.
 
 ## 10.2 `deviation-analysis`
