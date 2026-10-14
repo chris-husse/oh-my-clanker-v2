@@ -2,16 +2,38 @@
 
 v1 was thin on testing. v2 tests everything, end to end.
 
-## 13.1 Design, E2E tests and features are one thing
+## 13.1 The product design workflow
 
-- **Two protected folders** in this repo: `design/` (this high-level design) and
-  `e2e-tests/`. An implementation change may not modify either.
-- **`e2e-tests/` codifies the design.** If it isn't in `design/`, it can't be in
-  `e2e-tests/`. If it isn't in `e2e-tests/`, it isn't a feature.
-- **Every feature has E2E tests, and therefore a design artifact** in `design/`.
+A critical workflow fork of omc v2, **off by default**, for new projects
+developed from the ground up this way (this repo is the first, as a prototype).
+
+- **The rules:**
+  - two protected folders: `design/` (the high-level design) and `e2e-tests/`;
+    an implementation change may not modify either;
+  - `e2e-tests/` codifies the design: if it isn't in `design/`, it can't be in
+    `e2e-tests/`; if it isn't in `e2e-tests/`, it isn't a feature;
+  - every feature has E2E tests, and therefore a design artifact in `design/`;
+  - every E2E test points clearly to the design facts it exercises.
 - `design/` holds the high-level design artifacts. Per-feature designs made by
   the design lifecycle (superpowers-based) live in `docs/design/`
   (`design_artifact_root: repository`, `design_artifact_directory: docs/design`).
+- **Enabled in `omc configure`:** *Use product design workflow: Enabled |
+  Disabled*.
+- **When enabled, omc imports the rules** into the design, planning and review
+  steps, through a `<match>` on the flag, so agents can't break them by accident.
+  For now that is the whole harness: rules in the skills, no Python enforcement.
+  Later the exact flow gets baked into lifecycles and plugins.
+- **Coverage must be reviewable:** that each E2E test covers specific design
+  artifacts, and, eventually, that every design artifact has an E2E test.
+
+### The flow for this repo (prototype)
+
+1. Iterate on the design in `design/`.
+2. Build the Jira tasks that implement the design.
+3. Harden each task: does it actually work, roughly in that order, and what can
+   run in parallel.
+4. Each task adds E2E tests, each pointing clearly to the design facts it
+   exercises.
 
 ## 13.2 The E2E tests
 

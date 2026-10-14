@@ -63,28 +63,57 @@ document and removes it from this file.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## L. Testing (13-testing.md)
+## L. Testing: the product design workflow (13-testing.md §13.1)
 
-### L1. When E2E tests are written, if implementation can't touch them
-- **(a) Recommended: together with the design change, before implementation.**
-  A feature starts as a change to `design/` plus its E2E tests in `e2e-tests/`
-  (red), reviewed and committed as one design change. Implementation then makes
-  them pass without touching either folder. A test that turns out wrong goes back
-  through a design change, never through the implementation branch.
-- **(b)** Written during implementation, but in a separate commit that a reviewer
-  approves before the code.
-- **Cost if wrong:** (b) lets the code and the tests that judge it come from the
-  same agent in the same branch, which is what the protection exists to stop. (a)
-  makes every test fix a design change, even a typo.
+### L1. Where the setting lives
+- **(a) Recommended: per repo,** `product_design_workflow: false` in `repo.yaml`
+  (written with its default), shown in `omc configure`'s Repositories section as
+  *Use product design workflow*. The `<match "<repo>:product_design_workflow">`
+  fact reads it.
+- **(b)** Global, in shared config, for every repo.
+- **Cost if wrong:** (b) turns the workflow on for existing repos that weren't
+  built this way, or off for the new ones. (a) has to be set per new project.
 
-### L2. Who enforces the protected folders
-- **(a) Recommended: omc itself, for any repo.** `repo.yaml` gets
-  `protected_paths` (this repo: `[design/, e2e-tests/]`). The implement, review
-  and publish lifecycles fail (in `commit`'s and `ci-gate`'s checks) when the
-  branch's diff against its base touches a protected path; only a design change
-  may. This repo's CI runs the same check, so a change made outside omc is caught
-  too.
-- **(b)** A rule for this repo only: `AGENTS.md` plus a CI check.
-- **Cost if wrong:** (b) leaves every other repo without the protection, and an
-  agent inside omc finds out only when CI fails after the push. (a) adds one
-  config key and one Python check.
+### L2. Which steps get the rules
+- **(a) Recommended: design, planning, review, and implement.** You named design,
+  planning and review; implement is where an agent would modify `design/` or
+  `e2e-tests/` by accident, so its plugins (`superpowers-subagent-build`, the fix
+  skills, `commit`) get the protected-folder rule too.
+- **(b)** Design, planning and review only.
+- **Cost if wrong:** with (b), the rule reaches the implementer only through the
+  plan's text, and review catches a violation after the fact. (a) adds a short
+  block to implement's skills when the flag is on.
+
+### L3. How a task's E2E tests square with "implementation can't modify `e2e-tests/`"
+- **(a) Recommended: tests first, in their own commit.** Each task's first step
+  writes its E2E tests (red), citing the design facts, committed alone. The
+  task's implementation steps may not touch `e2e-tests/`; if a test is wrong, the
+  task stops and asks you instead of editing it. Review checks that no later
+  commit changed the tests.
+- **(b)** Separate test tasks, written by a different agent before the
+  implementation tasks they cover.
+- **(c)** The protection covers `design/` only; tasks write tests and code freely.
+- **Cost if wrong:** (c) lets the code's author adjust the tests that judge it.
+  (b) doubles the task count. (a) relies on review to spot a test edited
+  mid-task, since nothing enforces it yet.
+
+### L4. How E2E tests point to design facts
+- **(a) Recommended: a stable ID per design fact,** written visibly at the end of
+  the statement in `design/`, e.g. `` `F:run.one-per-worktree` ``. IDs are names,
+  not section numbers, so renumbering never breaks them. Each test declares what
+  it covers (`@covers("run.one-per-worktree")` or the test framework's
+  equivalent).
+- **(b)** Point to section numbers (`09-run-jobs.md §9.3`).
+- **(c)** A separate registry (`design/facts.yaml`) mapping IDs to sections.
+- **Cost if wrong:** (b) breaks every pointer when sections move, and a section
+  holds several facts. (c) drifts from the prose it describes. (a) adds an ID to
+  every normative statement in `design/`.
+
+### L5. The coverage check
+- **(a) Recommended:** a script in `e2e-tests/` that lists design facts with no
+  test, tests with no fact, and tests citing an unknown fact. This repo's CI fails
+  on the last two now; facts without tests are only reported until you make full
+  coverage a gate.
+- **(b)** Manual review only.
+- **Cost if wrong:** (b) can't answer "does every design artifact have a test"
+  without reading everything. (a) needs the fact IDs from L4.
