@@ -184,19 +184,25 @@ fail-loud as a rule.
   originally decided. (c) leaves no record of why the code differs from the
   design. (a) adds one file per design.
 
-### I3. How the project's extra CI checks run in `publish-gate`
-- **(a) Recommended:** each extra check is a watch job type declared in
-  `repo.yaml` (`jobs: {<name>: {command: […], fix_hints: …}}`), run as
-  `omc run <name>` with the same one-run-per-worktree rule, 1-hour limit, fix
-  loop, round counter and `detect-failures` / `rerun-tests` snippets.
-  `/auto-integrate` proposes them by reading the repo's CI configuration (GitLab
-  CI, GitHub workflows) and validates each one in the scratch worktree. A
-  `review:publish-gate` contribution names the jobs it adds.
-- **(b)** Contributions are skill text that tells the LLM which commands to run
-  in its shell.
-- **Cost if wrong:** (b) breaks "everything that runs goes through watch": tool
-  timeouts, no locks, no time limit, no round counting. (a) needs `/auto-integrate`
-  to learn each CI job once.
+### I3. The CI gate's name and what it runs
+Decided: the gate's job is `ci`, and repos can't define other job types.
+- **Name.**
+  - **(a) Recommended:** rename the plugin `ci-gate`, as you suggested: it says
+    what it gates on.
+  - **(b)** Keep `publish-gate`.
+  - **Cost if wrong:** small; a rename later touches pipeline config and docs.
+- **What it runs.**
+  - **(a) Recommended:** `omc run check`, then `omc run e2e-tests`, then
+    `omc run ci`, in that order, each with the usual fix loop. `/auto-integrate`
+    builds `ci` from the repo's CI configuration (GitLab CI, GitHub workflows),
+    covering what `check` and `e2e-tests` don't, and validates it in the scratch
+    worktree.
+  - **(b)** Only `omc run ci`, which the repo makes a full superset of CI (build,
+    tests, E2E, lint, scans).
+  - **Cost if wrong:** (b) duplicates `check` and `e2e-tests` inside `ci`, and a
+    `ci` failure in a test gets the generic `ci` fix skill instead of the
+    test-specific one. (a) runs three jobs, but I4's identical-tree skip makes the
+    first two free when implement's milestone gate already passed on this tree.
 
 ### I4. Does `publish-gate` rerun a job that passed on the identical tree?
 - **(a) Recommended: no.** watch records the git tree hash of every full pass;

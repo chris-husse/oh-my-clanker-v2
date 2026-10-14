@@ -33,12 +33,13 @@ Open (open-questions.md, I1).
 
 ## 10.4 `publish-gate`
 
-Replaces a rerun of `milestone-gate`. It runs the milestone gate (full check, then
-E2E) under its `review:publish-gate` hook, as omc's default contribution, and does
-more: the project adds contributions so the gate runs **every check its CI runs**.
+The gate before the MR. Its job is `ci` (09-run-jobs.md §9.2): the job type whose
+purpose is to fail whenever the repo's CI would fail. Repos can't add job types of
+their own; everything their CI checks belongs in `ci`.
 
-How the project's extra checks run is open (open-questions.md, I3), as is whether
-a job that already passed on the identical tree is rerun (I4).
+Open: the plugin's name (you suggested `ci-gate`) and whether it also runs the
+milestone gate's `check` and `e2e-tests` (open-questions.md, I3); whether a job
+that already passed on the identical tree is rerun (I4).
 
 ## 10.5 `create-mr`
 

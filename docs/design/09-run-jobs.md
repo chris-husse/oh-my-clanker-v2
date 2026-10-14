@@ -8,11 +8,15 @@ starts it, gets an ID back immediately, and checks on it.
 
 ## 9.2 Commands
 
+There are exactly three job types: `check`, `e2e-tests` and `ci`. Repos can't
+define their own job types.
+
 | Command | Does |
 |---|---|
 | `omc run check` | Starts a check job: build, unit tests, lint and format. Returns the job ID immediately |
 | `omc run check --test <selector>` | Builds what is needed and runs only the selected tests, using the repo's validated rerun snippet (9.5) |
 | `omc run e2e-tests` | Starts the E2E suite. Returns the job ID immediately |
+| `omc run ci` | Starts the CI job: what the repo's CI runs. The repo's goal for it is that it fails whenever CI would fail. Returns the job ID immediately |
 | `omc run <job-type> --job-id <id> status` | JSON status (default action): `queued \| running \| passed \| failed \| stopped \| terminated`, timestamps, failing tests, log path |
 | `omc run <job-type> --job-id <id> logs` | The job's output, under the usual output cap with spillover |
 | `omc run <job-type> --job-id <id> stop` | Kills the job's process tree (status `stopped`) |
