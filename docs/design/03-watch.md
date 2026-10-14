@@ -72,8 +72,9 @@ A repo becomes queryable once GitNexus and these surveys are done. Whether
 ### Trust
 
 Anything that runs the repo's code waits for trust (02-repos-and-config.md).
-`repo_wait` returns `queryable — awaiting trust: ask the user to run
-omc repo <repo> trust`, so an agent that requested the repo knows what to tell you.
+Polling the add-repo job (`omc internal add-repo --poll <job-id>`) returns
+`queryable — awaiting trust: ask the user to run omc repo <repo> trust`, so an
+agent that requested the repo knows what to tell you.
 
 ### `/auto-integrate` → integrated
 

@@ -24,6 +24,18 @@
 - **Everything that runs is managed by `omc watch`.** Builds, tests and E2E
   suites run as watch jobs, never as long tool calls, because LLM tool calls time
   out (the 10-minute tool timeout was a constant pain in v1). See 09-run-jobs.md.
+- **Long operations return a job ID; you poll it.** This is the one pattern for
+  everything slow: `omc run …` (09-run-jobs.md) and `omc internal add-repo`
+  (04-mcp-and-cli.md §4.3) start a job and return its ID at once; a poll waits a
+  bounded time and returns the result or "pending". Whether jobs cancel each other
+  depends on the job type: run jobs replace each other per worktree, repo
+  additions never do.
+- **The LLM may run tools itself, but converges on the Python API.** In the end it
+  can do whatever it thinks is good; that's the whole point. But it should use
+  omc's Python commands as much as possible, because they save tokens and time
+  and bring full integration with all repos. Builds and E2E suites are the
+  exception: it never runs them directly, except to debug something specific
+  about them; a job still passes only through `omc run`.
 - **Fail loud.** A misbehaving component (a hook that exits non-zero, oversize
   output, a hook that modifies what it must not) fails the whole skill with a
   precise error. Nothing is silently skipped. A failing hook is a bug to fix.

@@ -13,7 +13,7 @@ be run from the console or inlined in skills. `omc design` calls them in order.
 | 2 | `omc internal resolve-repo <hint>` | Python lookup that prints the repo key: exact key or name, then a unique case-insensitive prefix or substring; a full SSH URL is accepted as-is. If ambiguous, exits with the candidates and the CLI asks you to pick |
 | — | `omc internal find-repo <hint>` | Only for a repo omc has never seen: an LLM call with the agent's forge tools proposes an SSH URL; you confirm before it is added |
 | 3 | `omc internal create-slug <seed…>` | Joins all its arguments as the raw seed. An LLM call on `design.models.simple` makes the slug, doing a basic ticket fetch of its own (separate from the full fetch in `explain-seed`). Python only checks the format (`[a-z0-9-]`, ≤ `slug.max_length`). The slug is always LLM-generated: omc can't know the tracker or what it is reading |
-| 4 | `omc internal ensure-repo <repo> --until queryable` | Adds the repo if needed and waits, showing watch's checklist and any trust prompt |
+| 4 | `omc internal ensure-repo <repo> --until queryable` | Adds the repo if needed (`add-repo`) and polls the job until the state is reached, showing watch's checklist and any trust prompt |
 | 5 | `omc internal branch-name <repo> <slug>` | Prints `<branch_prefix><slug>` |
 | 6 | `omc internal branch-dir <repo> <branch>` | Prints `~/.omc2/repos/<repo-key>/branches/<branch-file>/` |
 | 7 | `omc internal create-worktree <repo> <branch>` | Through watch: fetch, verify the hidden clone is exactly on `origin/<base>` (so a worktree is never cut from an odd state), cut `<worktree_location>/<repo-key>/<slug>`. Fails if the worktree exists |

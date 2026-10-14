@@ -26,8 +26,8 @@ Commands that work without watch stay local: `watch`, `configure`, `update`,
 | MCP tool | CLI | What it does |
 |---|---|---|
 | `repo_list` | `omc repo list` | One line per known repo: key, setup state, indexed commit vs tip, docs on/off |
-| `repo_add(ssh_url)` | `omc repo add <ssh-url>` | Registers the repo (creates `repos/<key>/repo.yaml`, commits it) and queues setup. Returns immediately. Adding a known repo reports its state |
-| `repo_wait(repo, timeout_s)` | `omc repo <repo> wait` | Waits until the repo reaches a state; see open-questions.md for how it waits |
+| `repo_add(ssh_url)` | `omc internal add-repo <ssh-url>` | Registers the repo (creates `repos/<key>/repo.yaml`, commits it), queues setup and returns a job ID at once. Adding a known repo returns a job that reports its state |
+| `repo_add_poll(job_id)` | `omc internal add-repo --poll <job-id>` | Waits up to a minute, then returns the repo's info (key, setup state, indexed commit) or a pending info with watch's current checklist |
 | `gitnexus(repo, verb, args)` | `omc repo <repo> gitnexus <verb> …` | `query`, `context`, `impact`, `cypher` against the repo's index (tool granularity is open) |
 | `docs_grep(repo, …, scope)` | `omc repo <repo> docs-grep …` | Searches the configured docs context (4.4) |
 | `worktree_create(repo, slug)` | `omc repo <repo> worktree create <slug>` | Creates the branch from `origin/<base>` under `<worktree_location>/<repo-key>/<slug>` |
@@ -35,9 +35,12 @@ Commands that work without watch stay local: `watch`, `configure`, `update`,
 - **Repo arguments** accept a key, a unique name or an SSH URL, matched with the
   same Python lookup `omc design` uses. Ambiguous or unknown names fail and list
   candidates.
+- **Repo additions never cancel each other.** Unlike run jobs (one run per
+  worktree, 09-run-jobs.md §9.3), a branch can add ten repos in parallel and poll
+  each job.
 - **Finding unknown repos is the agent's job.** This happens constantly as a
   design finds dependencies and repos that need changes: the agent finds the SSH
-  URL with its own forge tools (GitLab/GitHub), then calls `repo_add`. omc never
+  URL with its own forge tools (GitLab/GitHub), then calls `repo_add` and polls the job. omc never
   searches a forge itself.
 
 ## 4.4 `docs_grep`

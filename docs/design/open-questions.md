@@ -65,14 +65,6 @@ document and removes it from this file.
   parameters anyway.
 - **Cost if wrong:** small; behind typed parameters the engine can be swapped.
 
-### C3. Waiting on repo setup
-- **(a) Recommended:** `repo_add` returns immediately, then the agent repeats
-  `repo_wait` with `timeout_s: 50` (under Codex's ~60 s tool timeout); each call
-  returns the current checklist.
-- **(b)** `repo_add` blocks for the whole setup with progress notifications.
-- **Cost if wrong:** (b) breaks on client tool timeouts, and progress-notification
-  support is unverified. (a) costs a few extra calls per setup.
-
 ### C4. GitNexus tool granularity
 - **(a) Recommended:** one `gitnexus` tool with `verb` ∈ `query|context|impact|cypher`.
 - **(b)** Four tools.
@@ -102,16 +94,15 @@ document and removes it from this file.
 
 ## E. Run jobs
 
-### E1. May the LLM run tools directly while diagnosing a failure?
-You approved this earlier (diagnosis only; only `omc run` can pass a job). Since
-then you set the rule that everything that runs is managed by watch. They conflict.
-- **(a) Recommended:** keep direct runs for short diagnostic probes only (e.g. one
-  test with `-vv`), explicitly exempt from the watch rule; the job still passes
-  only through `omc run`.
-- **(b)** No direct runs: every probe is an `omc run … --test <selector>` job.
-- **Cost if wrong:** (b) makes probes slower and spends rounds on diagnosis unless
-  probe jobs are made round-free. (a) lets probes bypass watch's locks and the
-  E2E isolation.
+### E2. Does `omc run` use the same `--poll` form as `add-repo`?
+Long operations share one pattern: a job ID, then a poll (01-principles.md).
+`omc run` was specified as `omc run <type> --job-id <id> status|logs|stop`.
+- **(a) Recommended:** align it: `omc run <type> --poll <job-id>` replaces
+  `--job-id <id> status` (long-polls `run.poll_wait_seconds`); `logs` and `stop`
+  stay as `omc run <type> --job-id <id> logs|stop`.
+- **(b)** Keep `--job-id <id> status` for run jobs.
+- **Cost if wrong:** (b) gives agents two spellings for the same thing. (a) is a
+  rename before anything is built, so it costs nothing now.
 
 ## F. Skill rendering
 
