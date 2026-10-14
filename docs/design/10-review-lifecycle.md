@@ -84,9 +84,37 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
 
 1. squashes the branch;
 2. prepares a human-facing MR description;
-3. pushes.
+3. pushes;
+4. opens the MR.
 
-Its remaining details are open (open-questions.md, I1–I5).
+- **Squash and push are Python** (`omc internal squash`, `omc internal push`), with
+  an **LLM fallback** when either fails: the LLM gets the command's error and
+  resolves it.
+  - The squash leaves one commit on top of the base; its message is the MR title
+    plus a short body. The tree stays identical, so `ci-gate`'s passes still hold.
+  - The push is `--force-with-lease` to `origin/<branch>`, so a re-review after an
+    earlier push replaces the branch without clobbering commits someone else
+    pushed.
+- **The MR** is opened (or, if one exists, its description updated) by the LLM
+  with whatever forge tools the session has; omc doesn't know the forge. It
+  targets the branch's base and opens ready for review, not as a draft.
+- **The description** is written for a human reviewer, from the design and the
+  diff:
+  - **Summary:** what changes and why, in a few sentences;
+  - **Changes:** the notable changes, grouped;
+  - **Deviations from the design:** the accepted entries of
+    `<slug>-deviations.md`, one line each;
+  - **Testing:** the `ci-gate` results;
+  - **Links:** the primary and related tickets.
+
+  No internal omc paths, plugin names or `/tmp` links.
+- **If the MR can't be opened** (no forge tools, auth), the plugin says why in its
+  output and again in the summary, and prints the description for you to paste;
+  the push has still happened.
+- **Not always on `main`:** a branch can be based on another local worktree's
+  branch, and a huge MR may need splitting into logical chunks. How both work is
+  open (open-questions.md, I6–I8), as are the rebase (I1), the ticket (I4) and
+  whether a `publish` lifecycle remains (I5).
 
 ## 10.6 Assumed (not yet confirmed)
 
@@ -94,3 +122,7 @@ Its remaining details are open (open-questions.md, I1–I5).
   with descriptive messages as they are applied; `create-mr` squashes them.
 - `<slug>-deviations.md` is committed by Python at `deviation-analysis`'s `--done`,
   the same way `<slug>-rulings.md` is.
+- After an LLM fallback in `create-mr`, Python verifies the result: exactly one
+  commit over the base, its tree identical to the tree `ci-gate` passed, and
+  `origin/<branch>` at local `HEAD`. A failed verification fails the skill. The
+  fallback never uses a plain `--force`.

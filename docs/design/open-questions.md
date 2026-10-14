@@ -152,7 +152,8 @@ fail-loud as a rule.
 ### I1. Rebasing onto the latest base
 - **(a) Recommended: a `rebase` plugin first in the review pipeline**
   (`review: [rebase, deviation-analysis, code-review, ci-gate, create-mr]`). Python
-  (`omc internal rebase`) fetches and rebases the branch onto `origin/<base>`; on
+  (`omc internal rebase`) fetches and rebases the branch onto its base (`origin/<base>`,
+  or the parent branch for a stacked branch, I6–I7); on
   conflicts, the LLM resolves them and Python verifies none remain, else you are
   asked. Review and the gate then see exactly the base that is pushed. If the base
   moves after the gate, the MR's own CI catches it; omc doesn't rebase again.
@@ -162,40 +163,6 @@ fail-loud as a rule.
 - **Cost if wrong:** (b) pushes a tree `ci-gate` never saw. (c) reviews and gates
   against a stale base, so conflicts and breakages show up only on the MR. (a)
   costs one plugin, and conflict resolution before any review.
-
-### I2. Squash and push
-- **(a) Recommended: Python does both** (`omc internal squash`,
-  `omc internal push`); the LLM only writes the text. The squash leaves one commit
-  on top of the base, whose message is the MR title plus a short body. The squash
-  keeps the tree identical, so `ci-gate`'s passes still hold. The push is
-  `--force-with-lease` to `origin/<branch>`, so a re-review after an earlier push
-  replaces the branch without clobbering commits someone else pushed.
-- **(b)** The LLM runs git itself, guided by the skill.
-- **Cost if wrong:** (b) is the v1 pattern that produced the moved-base squash
-  trap (a `reset --soft` against a base that moved mid-run). (a) costs two
-  `omc internal` commands.
-
-### I3. Opening the MR and its description
-- **(a) Recommended:** the LLM opens the MR (or updates the description of the
-  existing one) with whatever forge tools the session has (omc doesn't know the
-  forge, as with trackers), targeting `<base>`, ready for review, not draft. The
-  description is written for a human reviewer, from the design and the diff:
-  - **Summary:** what changes and why, in a few sentences;
-  - **Changes:** the notable changes, grouped;
-  - **Deviations from the design:** the accepted entries of
-    `<slug>-deviations.md`, one line each;
-  - **Testing:** the `ci-gate` results;
-  - **Links:** the primary and related tickets.
-
-  No internal omc paths, plugin names or `/tmp` links. If the MR can't be opened
-  (no forge tools, auth), the plugin says why in its output and again in the
-  summary, and prints the description for you to paste; the push has still
-  happened.
-- **(b)** Push only; you open the MR.
-- **(c)** Open it as a draft.
-- **Cost if wrong:** (b) leaves you a manual step on every branch. (c) needs a
-  second action from you before anyone reviews it. (a) asks reviewers to look as
-  soon as it opens.
 
 ### I4. The ticket at MR time
 - **(a) Recommended:** move the primary ticket to an "In Review"-type status with
@@ -216,3 +183,47 @@ fail-loud as a rule.
 - **Cost if wrong:** (b) adds a lifecycle and a handoff between the gate and the
   push for no new behaviour. (a) means `respond`, if it becomes a lifecycle,
   is added later.
+
+### I6. Where a branch's base comes from (stacked branches)
+- **(a) Recommended: recorded once, when the worktree is cut.** `omc design <repo>
+  "<seed>" --on <branch>` starts a branch on top of another omc branch of the same
+  repo (one with a local worktree); without `--on`, the base is the repo's `base`.
+  Python records the base branch and the fork point (the parent's commit the
+  branch was cut from) in the branch's cache folder
+  (`~/.omc2/repos/<key>/branches/<branch-file>/`). Rebase, the deviation diff, the
+  squash and the MR target all use the recorded base. `create-mr` refuses while
+  the parent isn't pushed, naming it.
+- **(b)** Asked at `create-mr` time.
+- **(c)** Inferred from git (the nearest branch by merge-base).
+- **Cost if wrong:** (b) means every earlier plugin diffed and gated against the
+  wrong base. (c) guesses wrong when branches share history. (a) needs `--on` at
+  design time; a branch can't be re-parented later without a new command.
+
+### I7. A stacked branch when its parent changes or merges
+- **(a) Recommended:** the `rebase` plugin uses the recorded fork point:
+  `git rebase --onto <parent's new tip> <old fork point>`, then records the new
+  fork point. This is needed because the parent's own squash rewrites its commits,
+  so a plain rebase would replay them. Once the parent is merged, the base becomes
+  the repo's `base` (the same `--onto`, from the parent's last fork point), and
+  `create-mr` retargets the MR there.
+- **(b)** A plain `git rebase <parent>`, and you fix duplicates by hand.
+- **Cost if wrong:** (b) replays the parent's unsquashed commits onto its squashed
+  commit after every parent squash: conflicts or duplicated changes in the child
+  MR. (a) requires the fork point to be kept accurately.
+
+### I8. Splitting a huge MR into logical chunks
+- **(a) Recommended: a split step inside `create-mr`,** offered when the diff
+  exceeds `review.split_suggest_lines` (written into config, e.g. `800`) and
+  available on request. The LLM proposes an ordered split (each chunk: title,
+  files and hunks, why it stands alone); you approve or change it. Python builds a
+  stack of branches `<branch>-1 … <branch>-n`, each one commit on the previous,
+  the last one's tree identical to the gated tree. Each intermediate chunk must
+  pass `omc run check` (the full gate already passed on the last tree). The MRs
+  open as a stack, each targeting the previous chunk, with "part i of n" in the
+  description.
+- **(b)** Split at design time instead: the plan becomes several stacked designs
+  and branches (I6).
+- **(c)** No split support; you split by hand.
+- **Cost if wrong:** (b) only helps when the size is known before implementing.
+  (c) leaves the hardest MR to the user. (a) costs a `check` run per intermediate
+  chunk, and a chunk that doesn't build sends you back to the split.
