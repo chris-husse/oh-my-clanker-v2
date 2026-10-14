@@ -14,10 +14,11 @@ Creating, splitting, pushing and updating MRs is the publish lifecycle's job
 - **Default pipeline:**
 
   ```yaml
-  review: [deviation-analysis, code-review, ci-gate]
+  review: [rebase, deviation-analysis, code-review, ci-gate]
   ```
 
-  Whether a `rebase` plugin comes first is open (open-questions.md, I1).
+  `rebase` is shared with publish (11-publish-lifecycle.md §11.2): review judges
+  and gates the branch on its current base.
 - After `ci-gate`, the lifecycle orchestrator states how to continue to publish.
 
 ## 10.2 `deviation-analysis`

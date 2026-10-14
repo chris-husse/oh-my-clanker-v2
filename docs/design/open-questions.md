@@ -147,97 +147,54 @@ fail-loud as a rule.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## I. Publish lifecycle (11-publish-lifecycle.md)
+## I. Publish: incorporating MR review comments (11-publish-lifecycle.md)
 
-### I1. The pipeline for creating the MR, and where the rebase goes
-- **(a) Recommended: a `rebase` plugin first in both review and publish.**
+### I1. How publish is re-entered for comments
+- **(a) Recommended: a `triage-comments` plugin first in the publish pipeline**
+  (`publish: [triage-comments, rebase, ci-gate, create-mr]`), skipped when the
+  branch has no MR or no unresolved threads. You re-enter with `omc publish` in
+  the worktree or `/omc:publish` in a session (omc doesn't know the forge, so
+  nothing polls it). The LLM fetches the unresolved threads with the session's
+  forge tools and writes a triage: each thread, its classification (*question*:
+  reply only; *change*: needs work; *disagreement*: you decide), the recommended
+  response, and a drafted reply. Only an explicit yes to the triage moves on.
+- **(b)** A separate `respond` lifecycle.
+- **(c)** No support; you relay comments into a session yourself.
+- **Cost if wrong:** (b) adds a fifth lifecycle whose plugins are mostly
+  publish's. (c) is the manual step you want gone. (a) runs one skipped plugin on
+  every first publish.
 
-  ```yaml
-  review:  [rebase, deviation-analysis, code-review, ci-gate]
-  publish: [rebase, ci-gate, create-mr]
-  ```
+### I2. How a change requested in a comment gets built
+- **(a) Recommended: by size, decided in the triage.** *Small* changes (local,
+  no design impact) are fixed inside publish by a subagent at the `Complexity:`
+  the triage assigns, then go through `code-review` and `ci-gate`. *Substantive*
+  changes start a **feedback round** through the lifecycles: a feedback design
+  `<slug>-feedback-<n>.md` with its plan (design lifecycle from
+  `superpowers-brainstorm`, seeded with the threads), then implement, review, and
+  publish again. The approved design is never rewritten.
+- **(b)** Always a feedback round through every lifecycle.
+- **(c)** Always fixed inside publish, with no design.
+- **Cost if wrong:** (b) sends a one-line rename through brainstorming and
+  hardening. (c) builds design-level changes nobody designed. (a) depends on the
+  triage's size call, which you confirm.
 
-  Python (`omc internal rebase`) fetches and rebases the branch onto its base
-  (`origin/<base>`, or the parent branch named in session memory, I3); on
-  conflicts, the LLM resolves them and Python verifies none remain, else you are
-  asked. When the branch is already on the latest base it is a no-op, the tree is
-  unchanged, and publish's `ci-gate` skips every job (identical tree). If the base
-  moved since review, the rebased tree is gated again before anything is pushed.
-  The same command serves the parked `omc refresh`.
-- **(b)** Rebase only in publish (`publish: [rebase, ci-gate, create-mr]`);
-  review runs against the base the worktree was cut from.
-- **(c)** No rebase; the forge merges with the base.
-- **Cost if wrong:** (b) reviews against a stale base, so the deviation analysis
-  and code review miss interactions with newer base changes. (c) pushes a branch
-  that may conflict or break on the current base, found only on the MR. (a) costs
-  one mostly no-op plugin in each lifecycle.
+### I3. Replies on the forge
+- **(a) Recommended:** the drafted replies are approved with the triage and
+  posted by the LLM after the push, each saying what changed (with the commit) or
+  answering the question. omc never resolves a thread; the reviewer does.
+- **(b)** omc posts nothing; you reply.
+- **(c)** Post and resolve threads.
+- **Cost if wrong:** (b) leaves every thread for you to answer. (c) closes
+  threads the reviewer may not agree are done. (a) posts under your account, but
+  only text you approved.
 
-### I3. A stacked branch when its parent changes or merges
-The base comes from session memory (12-session-memory.md), not from a record made
-at design time.
-- **(a) Recommended:** the plugin passes the base it read from memory to Python
-  explicitly (`omc internal rebase --base <branch>`); Python checks the branch
-  exists. Python keeps the parent tip it last rebased onto in the branch's cache
-  folder and rebases with `git rebase --onto <parent's new tip> <last parent
-  tip>`, because the parent's own squash rewrites its commits. Once the parent is
-  merged, the base is the repo's `base` again (the same `--onto`) and `create-mr`
-  retargets the MR there.
-- **(b)** A plain `git rebase <parent>`; you fix duplicates by hand.
-- **Cost if wrong:** (b) replays the parent's unsquashed commits onto its squashed
-  commit after every parent squash: conflicts or duplicated changes in the child
-  MR. (a) keeps one piece of git state per branch, written only by Python.
-
-### I5. The ticket at MR time
-- **(a) Recommended:** move the primary ticket to an "In Review"-type status with
-  the session's tracker tools; nothing else, as with `ticket-start`. Skipped when
-  the design has no `Primary:` line; a failure is stated in the output and the
-  summary, and the plugin continues.
-- **(b)** Also add the MR link as a ticket comment.
-- **(c)** Don't touch the ticket.
-- **Cost if wrong:** (b) adds a write omc refused at `ticket-start` (comments are
-  noise when the forge already links MRs to tickets by key). (c) leaves the ticket
-  "In Progress" while the MR waits for review.
-
-### I6. Incorporating MR review comments (next question group)
-- How publish is re-entered once comments arrive, how comments are triaged, and
-  how a change goes again through design, review, `ci-gate` and push.
-
-## J. Session memory (12-session-memory.md)
-
-### J1. OptMem or omc's own store
-OptMem's repository has **no license** (GitHub reports none), so by default all
-rights are reserved: omc may not copy or ship its code. It installs with
-`curl … | sh` into `~/.optmem/`, is one Python 3 file with no dependencies, and was
-last pushed 2026-07-31.
-- **(a) Recommended: omc's own minimal store, borrowing OptMem's format.** One
-  file per branch, append-only, one memory per line (≤ 280 bytes), each with a
-  timestamp. Injection prints it verbatim. No summary tree: a branch's memory is
-  a few dozen lines.
-- **(b)** Use an installed OptMem with `$MEMORY_DIR` pointing at the branch
-  folder; the prerequisite checks it is installed, as for superpowers.
-- **(c)** Ask the author for a license first, then vendor it.
-- **Cost if wrong:** (b) makes every user run an unpinned `curl | sh`, and its
-  `note` can stop mid-skill to ask the model for summary merges ("nap"). (a) loses
-  OptMem's summaries and recall if a branch's memory ever grows to hundreds of
-  lines.
-
-### J2. Who adds memories
-- **(a) Recommended:** you, with `omc memory add` in a shell, and the session's
-  main agent when you state a standing instruction for the branch in the
-  conversation: it runs `omc memory add` with your words and says so in one line.
-  Subagents never write memories (OptMem's own rule).
-- **(b)** Only you, by command.
-- **(c)** The agent too, for anything it learns (OptMem's model).
-- **Cost if wrong:** (b) loses everything you say in conversation unless you
-  retype it as a command. (c) fills the memory with the agent's own notes, which
-  then steer every later skill. (a) depends on the agent spotting a standing
-  instruction; the one-line confirmation shows you when it did.
-
-### J3. Where memory is injected
-- **(a) Recommended: into every rendered skill for the branch** (every lifecycle
-  plugin, fix skill and user-facing skill run in that worktree), as a
-  `## Session memory` block right after the stub's header. Python renders it; an
-  empty memory renders nothing.
-- **(b)** Only into lifecycle orchestrator skills.
-- **Cost if wrong:** (b) lets a fix skill or `create-mr` miss "target branch X".
-  (a) adds the memory's size to every skill's context.
+### I4. Squash on later pushes
+- **(a) Recommended: squash only on the first push.** Feedback rounds push new
+  commits on top (`review: <what>`), with a plain push (no force), so reviewers
+  see exactly what changed since their review; the final squash is the forge's
+  squash-merge. A rebase in a feedback round (a moved base) still needs
+  `--force-with-lease`; the MR description says so.
+- **(b)** Squash and force-push on every round.
+- **Cost if wrong:** (b) breaks the reviewer's "changes since last review" view
+  on forges that don't keep versions. (a) leaves several commits on the MR until
+  merge.

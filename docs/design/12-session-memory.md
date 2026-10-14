@@ -14,16 +14,23 @@ MR targets, or whether it stacks on another worktree, is a memory like any other
 ## 12.2 Shape
 
 - **Per branch:** `~/.omc2/sessions/<repo-hash>/<branch-slug>/optmem`.
-- **Adding:** `omc memory add "<text>"`, for example
+- **Written by the LLM, never by you.** The session's main agent runs
+  `omc memory add "<text>"` when you say something that matters for the branch
+  beyond the current step, for example
   `omc memory add "We are targeting local worktree bla and need to file the MR against that branch, if it wasn't merged yet."`
-- **Injected at the top** of the skill, as memory.
+  It says so in one line. Subagents never write memories.
+- **omc's own store, borrowing OptMem's format**
+  ([VictorTaelin/OptMem](https://github.com/VictorTaelin/OptMem)). OptMem itself
+  isn't used: its repository has no license, so omc may not copy or ship it, and
+  it installs with an unpinned `curl | sh`. The store is one append-only file per
+  branch, one memory per line (≤ 280 bytes), each with a timestamp. There is no
+  summary tree: a branch's memory is a few dozen lines.
+- **Injected into every skill rendered for the branch:** every lifecycle plugin,
+  fix skill and user-facing skill run in that worktree, as a `## Session memory`
+  block right after the stub's header. Python renders it verbatim; an empty
+  memory renders nothing.
 - **Retention:** watch clears a branch's subfolder once it has been unmodified
   for a month.
-- **OptMem** ([VictorTaelin/OptMem](https://github.com/VictorTaelin/OptMem)) is the
-  candidate for the store: plain files, an append-only log of one-line memories
-  (≤ 280 bytes), summaries kept as a rebuildable tree, regex recall, and
-  `$MEMORY_DIR` to put the memory anywhere. Whether omc uses it is open
-  (open-questions.md, J1).
 
 ## 12.3 Assumed (not yet confirmed)
 

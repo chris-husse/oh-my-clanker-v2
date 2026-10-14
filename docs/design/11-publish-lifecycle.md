@@ -11,10 +11,36 @@ built and meets the quality gates.
 
 - **Entry:** the review orchestrator's continuation, or `omc publish
   [--claude|--codex]` for a fresh session in the worktree.
-- The pipeline is open (open-questions.md, I1), and so is incorporating comments
-  (I6).
+- **Default pipeline** for creating the MR:
 
-## 11.2 `create-mr`
+  ```yaml
+  publish: [rebase, ci-gate, create-mr]
+  ```
+
+  `ci-gate` is review's (10-review-lifecycle.md §10.4). When review left the
+  branch on the latest base, `rebase` changes nothing and `ci-gate` skips every
+  job (identical tree). If the base moved since review, the rebased tree is gated
+  again before anything is pushed.
+- Incorporating review comments is open (open-questions.md, I6).
+
+## 11.2 `rebase`
+
+Shared by review and publish; the same command serves the parked `omc refresh`.
+
+- **Python** (`omc internal rebase --base <branch>`) fetches and rebases the
+  branch onto its base. The plugin passes the base explicitly: the branch named in
+  session memory (12-session-memory.md) when there is one, else the repo's `base`.
+  Python checks that the branch exists.
+- **Conflicts:** the LLM resolves them; Python verifies none remain, else you are
+  asked.
+- Already on the latest base: a no-op, and the tree is unchanged.
+- **Stacked branches:** Python keeps the parent tip it last rebased onto in the
+  branch's cache folder and rebases with
+  `git rebase --onto <parent's new tip> <last parent tip>`, because the parent's
+  own squash rewrites its commits. Once the parent is merged, the base is the
+  repo's `base` again (the same `--onto`), and `create-mr` retargets the MR there.
+
+## 11.3 `create-mr`
 
 Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
 `create-mr`:
@@ -48,12 +74,15 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
 - **If the MR can't be opened** (no forge tools, auth), the plugin says why in its
   output and again in the summary, and prints the description for you to paste;
   the push has still happened.
+- **The ticket:** the primary ticket moves to an "In Review"-type status with the
+  session's tracker tools; nothing else, as with `ticket-start`. Skipped when the
+  design has no `Primary:` line. If it can't be moved, the plugin says why in its
+  output and again in the summary, and continues.
 - **Not always on `main`:** a branch can be based on another local worktree's
   branch. That intent is never fixed at design time; it comes from the branch's
-  session memory (12-session-memory.md), whenever you said it. How a stacked
-  branch follows its parent is open (open-questions.md, I3), as is the ticket (I5).
+  session memory (12-session-memory.md), whenever you said it (§11.2).
 
-## 11.3 Splitting a huge MR
+## 11.4 Splitting a huge MR
 
 - `create-mr` offers a split when the diff exceeds `review.split_suggest_lines`
   (written into config, e.g. `800`), and on request.
@@ -69,7 +98,7 @@ Not `commit`: `commit` is for tasks and steps (08-implement-lifecycle.md §8.5).
   in the description.
 
 
-## 11.4 Assumed (not yet confirmed)
+## 11.5 Assumed (not yet confirmed)
 
 - After an LLM fallback in `create-mr`, Python verifies the result: exactly one
   commit over the base, its tree identical to the tree `ci-gate` passed, and
