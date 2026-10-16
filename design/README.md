@@ -8,6 +8,13 @@ This folder (`design/`) holds only the v2 high-level design; it is protected (13
 goes, and every settled decision is recorded here. Anything not yet decided is
 in [open-questions.md](open-questions.md), with its full options.
 
+## MVP
+
+The MVP is everything in this folder **except** what is marked parked or
+"not part of the MVP" (currently: the product design workflow feature, 13 §13.1,
+and the parked topics in open-questions.md §B and §H). That includes all four
+lifecycles: design, implement, review and publish.
+
 ## Documents
 
 | # | Document | Covers |
