@@ -2,9 +2,24 @@
 
 v1 was thin on testing. v2 tests everything, end to end.
 
+## 13.0 This repo's rule (in effect now)
+
+This repo follows the protection rules below by hand; the rule text lives in
+`AGENTS.md` (`CLAUDE.md` imports it):
+
+- `design/` and `e2e-tests/` are protected: any change needs your explicit
+  approval of its nature (what it covers, why, which design part it verifies),
+  never of code.
+- `e2e-tests/` holds **only Markdown definitions**, one per test or scenario. The
+  test code is derived from them and lives in `tests/e2e/`. It implements its
+  definition and nothing more; testing something different means changing the
+  definition first, with approval.
+- Design and definitions change together, as one proposal and one approval.
+
 ## 13.1 The product design workflow
 
-**Not part of the MVP** (parked 2026-10-16; open questions in open-questions.md §L).
+**Not part of the MVP** (parked 2026-10-16; open questions in open-questions.md
+§L). It turns §13.0 into an omc feature that any repo can switch on.
 
 A critical workflow fork of omc v2, **off by default**, for new projects
 developed from the ground up this way (this repo is the first, as a prototype).
