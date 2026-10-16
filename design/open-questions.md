@@ -63,7 +63,9 @@ document and removes it from this file.
 - **Cross-repo features:** how one feature spans several repos (v1's multi-repo
   workspace design is the reference), rebuilt on watch.
 
-## L. Testing: the product design workflow (13-testing.md §13.1)
+## L. Testing: the product design workflow (13-testing.md §13.1) — parked, not MVP
+
+Parked by you on 2026-10-16: the product design workflow is not part of the MVP.
 
 ### L1. Where the setting lives
 - **(a) Recommended: per repo,** `product_design_workflow: false` in `repo.yaml`

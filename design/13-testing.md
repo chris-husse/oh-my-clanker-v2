@@ -4,6 +4,8 @@ v1 was thin on testing. v2 tests everything, end to end.
 
 ## 13.1 The product design workflow
 
+**Not part of the MVP** (parked 2026-10-16; open questions in open-questions.md §L).
+
 A critical workflow fork of omc v2, **off by default**, for new projects
 developed from the ground up this way (this repo is the first, as a prototype).
 
