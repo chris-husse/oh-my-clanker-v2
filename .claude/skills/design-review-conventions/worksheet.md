@@ -20,8 +20,9 @@ sections:
 
 - `## Units`: the units of the review file, in file order, each with its reference.
 - `## Questions`: one entry per finding or merged question, whatever its bucket, with the
-  comment references it merges, its bucket in each iteration, its ruling id once the ruling is
-  recorded, and the commit that applied it.
+  comment references it merges, its bucket in each iteration, its question number/order and
+  total, current/upcoming role, exact presented question and owner answer, pending uncertainties,
+  confirmed ruling id, and the commit that applied it.
 - `## Status lines`: every status line shown, in order.
 - `## Rulings as written`: each ruling as entered in the decision log.
 
@@ -43,3 +44,19 @@ Agent outputs sit beside the worksheet, one file per agent:
   writes no such file.
 - `verify-<nn>.md`: verify-review; `nn` is the two-digit count of verify passes in the cycle,
   from `01`.
+
+## 4. Question progress
+
+The orchestrator handles presentation, recording and progress directly; there is no background
+recorder or separate answer queue. Show the current question and the next unanswered preview,
+labeled exactly `Upcoming (Don't answer yet)`, each with `Question n of N` and the count
+remaining after it. Only the current question requests an answer.
+
+Save the exact question and answer before recording the definite ruling with `just decisions`.
+Save the confirmed id and readback under `## Rulings as written`; keep uncertainties separately
+for subsequent review/validation, without immediate follow-ups. Then promote the preview and
+refill from the existing question list. Displaying a question never answers it.
+
+On resume, use the worksheet and reconcile any uncertain write against the section through
+`just decisions list/show` before retrying, so a successful write is not duplicated. Never
+advance verification, application or closing past an unresolved recording failure.

@@ -44,7 +44,9 @@ Rules:
   closes without ruling.
 - Renaming a decided review file is the owner's job and includes amending the line.
 - Rulings are the owner's answers interpreted and cleaned up, never pasted, in the corpus's own
-  words, with a link for every reference (`docs/LINKS.md`).
+  words, with a link for every reference (`docs/LINKS.md`). The orchestrator records the definite
+  decision itself through `just decisions`; unresolved ambiguities remain in the worksheet for
+  subsequent review/validation and are never silently turned into policy.
 - The `Answers:` line names the finding numbers a ruling answers. Iteration findings are named
   by iteration and number, as `01.3`. Comments in a free-form file are named by a short quoted
   phrase each.

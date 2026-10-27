@@ -1,6 +1,6 @@
 ---
 name: review-design
-description: Turn one committed review file under docs/reviews/ into a numbered decision-log section by asking the owner one question at a time, record each ruling with `just decisions`, apply it with /apply-decision (one commit per ruling), validate with /validate-design until the owner stops, then close the section and commit it. With no argument, offer every undecided review file. The owner invokes this; never run it on your own.
+description: Review a committed file under docs/reviews/ with one current question and one upcoming preview. The orchestrator records answers through just decisions, applies rulings through /apply-decision, validates until the owner stops, then closes and commits the review. With no argument, offer undecided review files. The owner invokes this; never run it on your own.
 disable-model-invocation: true
 ---
 
@@ -24,8 +24,19 @@ Before anything:
   `just decisions` and the open-section check print the section's own lines (steps 5 and 9) and
   one earlier ruling for a carry prompt (`show <id>`, steps 7 and 8), and `/apply-decision` reads the history and the
   documents one ruling reaches, as its own skill says.
-- One question per turn, never a multi-question prompt. Present one question, wait for the
-  answer, act on it, then the next.
+- The orchestrator presents questions, records answers through `just decisions`, and maintains
+  progress itself. Do not delegate answer recording or create a background recording queue.
+- Show one current question and the next unanswered question as a preview labeled exactly
+  `Upcoming (Don't answer yet)`; show only the current question if one remains. Each displays
+  `Question n of N` and the count remaining after it, taken from the worksheet. Only the
+  current question requests an answer; displaying the preview never answers or approves it.
+  Interpret an unnumbered reply only against the current question: repeated affirmations
+  such as "yes yes" do not answer the upcoming preview.
+- Record each answer, then promote the preview and show the next prepared question without
+  rerunning the audit or applying documents between answers. Do not normally ask immediate
+  follow-ups: preserve uncertainties for the next review/validation pass without inventing policy.
+- Ask only about materially different workable choices not settled by existing material.
+  Resolve ordinary implementation details and correctness requirements without asking the owner.
 - The commits of a cycle are the review file at the gate, the commits of steps 7 and 8 (one per
   ruling by `/apply-decision`, one `Carried:` commit per pass for the documents the carry-document
   agents edited) and the
@@ -151,19 +162,26 @@ already holds; copy the section as it stands, its header block and those entries
 (`sed -n '/^## N\. /,$p' docs/decision-log.md`: the open section is the last one, so these are its own lines), to
 the top of `## Rulings as written` in the worksheet. Otherwise the section is opened before the first ruling, below.
 
-**Confirmations next**, in runs of up to five, numbered across the whole cycle (`C1`…), one
-run per turn. Each confirmation shows its evidence so the owner can rule properly: the comment
-(quoted, with its link where the file has one), the passage it changes (quoted, file and
-heading), and the ruling as it would be written, in one or two sentences. Close the turn with
-one line: `Yes to all, or correct by number (C3: …).` A "yes" writes every confirmation of the
-run as a ruling; a correction rewrites that one as the owner says (or, when the owner's words
-turn it into a choice, moves it to the real questions). Then the next run.
+**Current question and upcoming preview.** Use the next two unanswered prepared questions
+from the worksheet, confirmations first and then real questions. Start each with
+`Question n of N` and the count remaining after it; label the second exactly
+`Upcoming (Don't answer yet)`. Keep the same number while discussing a question, update
+N when questions are added, merged or dropped, and never show only `Question n`.
 
-**Real questions after**, one per turn, numbered `n of N`: present the question, both quoted
-passages with file and heading, why it matters, and a recommendation. Wait for the answer.
+For each displayed question, explain the concrete situation, relevant existing behavior,
+the unresolved choice, and the practical consequences of the workable alternatives. Explain
+unfamiliar terms and give a recommendation with its reason; a one-line question is not enough.
+For the current question, include concise quoted evidence with file and heading; retain
+confirmation references (`C1`…) as source ids. The preview needs meaningful context too,
+but does not request an answer yet. Wait
+for the current answer only. Preserve the prepared list between answers, rather than
+rechecking the whole review. The orchestrator records the answer below before advancing.
 
-The answer is interpreted and cleaned up into a ruling, never pasted (`decision-log-section.md`:
-in the corpus's own words, a link for every reference). Before the first ruling, when the open-section check found
+The orchestrator saves the presented question and exact answer in the worksheet, then interprets
+and cleans up only the definite decision into a ruling (`decision-log-section.md`: in the corpus's
+own words, a link for every reference). Preserve ambiguities in the worksheet for subsequent
+review/validation rather than asking an immediate follow-up or inventing approval. If no definite
+decision can be extracted, leave it pending for that later pass and proceed to the next question. Before the first ruling, when the open-section check found
 no open section for this review, open it through the tool; it prints N:
 
 ```bash
@@ -187,14 +205,20 @@ docs-relative: the item's heading in the review file (`## R4. …` gives `review
 alone; for an iteration finding it is the iteration file's path with that finding's heading,
 `reviews/iterations/<…>-iteration-NN.md#<n>. <title>` (step 8). The tool refuses an unknown file or heading and
 writes nothing; fix the reference. Append the output of `just decisions show N.k` to
-`## Rulings as written`, write the id into the question's entry under `## Questions`, and mark the question done.
+`## Rulings as written`, write the id into the question's entry under `## Questions`, and mark the
+answer recorded; keep any unresolved parts pending. Do not claim recording succeeded without
+readback, or retry an uncertain write without checking the section for an existing entry.
 
 The `--answers` text follows `decision-log-section.md`: finding or question numbers where the
 file has them; for a free-form file a short quoted phrase per comment, so the log reads on its
 own; iteration findings as `01.3`. A worksheet reference like `¶12` never appears in the log.
-Continue with the next question.
+Promote the preview to current and show the next unanswered preview.
 
 ### 6. Verify
+
+Confirm every definite answer has been recorded and no write failure is unresolved before
+verification, application or closing. Supply pending uncertainties from the worksheet as
+`<pending uncertainties>` below; an answered question can still have an unresolved part.
 
 Dispatch one verify-review agent: the every-prompt block of `agent-prompts.md` section 1
 followed by the verify-review body of section 6. `<review file path>` is the argument file
@@ -207,8 +231,8 @@ its reference and the ruling number that settles it, then a draft `### N.<k+1> D
 entry listing every unit marked `dismissed` and every unit on the dropped list with its reason.
 Wait; a missing output is redispatched once.
 
-Read `<RUN>/verify-<nn>.md`. Every unit marked `not answered` is put to the owner as one
-follow-up question through step 5. The owner rules, and the ruling is recorded as in step 5; or
+Read `<RUN>/verify-<nn>.md`. Material units marked `not answered` become the next prepared
+question pass through step 5, with updated counts and the current/upcoming display. The owner rules, and the ruling is recorded as in step 5; or
 the owner dismisses the unit, and its entry under `## Questions` in the worksheet is marked
 `dismissed`, with file and heading and a one-line gist, for the declared-minor entry of step 9.
 Dispatch verify-review again, with the next `nn`, until every unit is `answered by`; a unit
@@ -377,7 +401,9 @@ After the last file, say that the list is done and stop.
   lines, and
   `show <id>` one earlier ruling for a carry prompt, nothing more; `/apply-decision` at step 7
   reads what its own skill says.
-- Never ask two real questions in one turn; confirmations come in runs of up to five.
+- Never present both displayed questions as active, or treat a preview as an answer or approval.
+  Label the preview exactly `Upcoming (Don't answer yet)`; only the current question asks for an answer.
+- Never delegate answer recording, fabricate missing policy, or treat an unverified write as recorded.
 - Never paste an answer as a ruling; interpret and clean it up.
 - Never commit outside step 1 (the review file), steps 7 and 8 (one commit per ruling by
   `/apply-decision`, one `Carried:` commit per pass for the documents the carry-document agents

@@ -149,6 +149,7 @@ Inputs:
 - `<review file path>`: the review file or iteration file, repo-relative.
 - `<unit>`: the unit of a comment for this file, as the session defined it.
 - `<section>`: the new section, verbatim, as written so far.
+- `<pending uncertainties>`: unresolved answer ambiguities from the worksheet, or `None`.
 - `<OUTPUT PATH>`: `verify-<nn>.md` in the run directory.
 
 Body:
@@ -159,6 +160,11 @@ The new section of the decision log, as written so far:
 
 <section>
 
+Pending uncertainties (not rulings):
+<pending uncertainties>
+
 For each unit of the file, in file order, write one list item: the unit's reference, then `answered by N.n`, naming the entry whose ruling, settled line or declared-minor line covers it, or `not answered`, then one line why.
+Check uncertainties against existing material. Only materially new unresolved choices belong
+in the next question pass; ordinary implementation details and correctness requirements do not.
 The number of findings in your reply is the number of units marked not answered.
 ```

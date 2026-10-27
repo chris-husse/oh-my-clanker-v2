@@ -38,3 +38,102 @@ Answers: R94
 
 R95 and R96 are parked with [14.2](design/14-cross-repo-features.md#14.2%20Changing%20several%20repos%20in%20one%20feature%20(not%20MVP;%20a%20design%20guideline) "git:c29519177f29") and are not MVP.
 **Status.** note
+
+### 1.5 Provider fixed at launch; subagent models resolved live by complexity
+
+**Context.** [R49](reviews/2026-10-16-adversarial-design-review.md#R49.%20[high]%20Model%20block%20schema:%20per%20provider,%20orchestrator%20slot,%20publish,%20review%20and%20subagent%20slots,%20pinning) identifies conflicting model-selection contracts: [2.5](design/02-repos-and-config.md#2.5%20Config) describes a provider and model set per lifecycle, while [8.1](design/08-implement-lifecycle.md#8.1%20Shape) describes model slots per provider. The design needs one rule for provider selection and for resolving task models without embedding provider-specific model names in design and plan artifacts.
+**Decision.** The provider is selected only in the initiating omc call, such as `omc design --claude`, and remains fixed once that provider has been launched; neither the running session nor its subagents switch providers. Designs and implementation plans use complexity markers matching the OMC configuration, never specific model names. Whenever it launches a subagent, the orchestrator looks up the current configuration for its own provider, resolves the task's complexity class to the configured model, and assigns that model to the subagent.
+**Affected.** [2.5](design/02-repos-and-config.md#2.5%20Config), [07-design-lifecycle](design/07-design-lifecycle.md), [08-implement-lifecycle](design/08-implement-lifecycle.md), [10.1](design/10-review-lifecycle.md#10.1%20Shape), [11.1](design/11-publish-lifecycle.md#11.1%20Shape)
+**Source.** [R49. [high] Model block schema: per provider, orchestrator slot, publish, review and subagent slots, pinning](reviews/2026-10-16-adversarial-design-review.md#R49.%20[high]%20Model%20block%20schema:%20per%20provider,%20orchestrator%20slot,%20publish,%20review%20and%20subagent%20slots,%20pinning)
+**Status.** recorded 2026-10-27
+Answers: R49
+
+### 1.6 Feedback requirements: full harness and final SPEC/PLAN consolidation
+
+**Context.** [R5](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round) exposes missing feedback-iteration contracts across the lifecycles. The owner has specified how feedback must be considered and what fixes and final artifacts must satisfy, but has not yet decided the best mechanism for clean repeated iterations.
+**Decision.** All MR feedback and review-agent feedback must be considered against the full design through Superpowers brainstorming, with Superpowers deciding whether extensive brainstorming is warranted or a lightweight change suffices, without calling `/design` again. Fixes must flow through the same full harness: brainstorming, design hardening, implementation with proper building, testing and review, full branch review by its review agents, squashing, spec/plan merging and MR-description update. Artifacts must be preserved during iteration and accepted addenda deliberately consolidated into exactly one final SPEC and one PLAN for the final squashed MR push; clean repeated iterations still need to be designed, and no iteration mechanism has been decided.
+**Affected.** [06-lifecycles](design/06-lifecycles.md), [07-design-lifecycle](design/07-design-lifecycle.md), [08-implement-lifecycle](design/08-implement-lifecycle.md), [10-review-lifecycle](design/10-review-lifecycle.md), [11-publish-lifecycle](design/11-publish-lifecycle.md)
+**Source.** [R5. [blocker] Publish has no way to re-enter the design lifecycle for a feedback round](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round)
+**Status.** recorded 2026-10-27
+Answers: R5
+
+### 1.7 Question routing: consult existing material before escalating
+
+**Context.** During discussion of [R5](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round), the owner was asked whether an orchestrator should relay every worker question or answer from existing decisions. The owner required escalation only for materially new questions that existing material cannot answer; this settles question routing, while the wider iteration architecture remains under discussion.
+**Decision.** Before asking the owner, the orchestrator consults the existing design, plans, recorded rulings and review/iteration material. It answers worker questions already settled by that material and escalates only materially new questions that cannot be answered from it. This question-routing policy does not grant new approvals or treat a genuinely required new approval as implied by past material.
+**Affected.** [06-lifecycles](design/06-lifecycles.md), [07-design-lifecycle](design/07-design-lifecycle.md), [08-implement-lifecycle](design/08-implement-lifecycle.md), [10-review-lifecycle](design/10-review-lifecycle.md), [11-publish-lifecycle](design/11-publish-lifecycle.md)
+**Source.** [R5. [blocker] Publish has no way to re-enter the design lifecycle for a feedback round](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round)
+**Status.** recorded 2026-10-27
+Answers: R5
+
+### 1.8 Feedback iterations: owner decides when to stop, no automatic count cap
+
+**Context.** During discussion of [R5](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round), a configurable cap on complete feedback cycles was proposed separately from build/test retries. The owner rejected that cap because the human remains involved in answering questions and will decide when enough iteration has occurred.
+**Decision.** Complete feedback iterations have no automatic round or count cap; the owner remains in the loop for materially new questions and decides when to stop. The existing policy of answering worker questions from existing material and escalating only materially new questions that it cannot answer remains in force. This applies only to complete feedback cycles and does not remove or change existing bounded build/test job-repair budgets.
+**Affected.** [06-lifecycles](design/06-lifecycles.md), [11-publish-lifecycle](design/11-publish-lifecycle.md)
+**Source.** [R5. [blocker] Publish has no way to re-enter the design lifecycle for a feedback round](reviews/2026-10-16-adversarial-design-review.md#R5.%20[blocker]%20Publish%20has%20no%20way%20to%20re-enter%20the%20design%20lifecycle%20for%20a%20feedback%20round)
+**Status.** recorded 2026-10-27
+Answers: R5
+
+### 1.9 MR splitting: outside MVP, retained as a future design consideration
+
+**Context.** [R46](reviews/2026-10-16-adversarial-design-review.md#R46.%20[high]%20Splitting%20a%20huge%20MR:%20chunk%20worktrees,%20failures,%20push%20and%20verification,%20later%20rounds) asks whether splitting a feature into stacked MRs belongs in the MVP, given the unresolved execution and later-round contracts in [11.4](design/11-publish-lifecycle.md#11.4%20Splitting%20a%20huge%20MR). The owner answered: "Not needed but should be considered for the design."
+**Decision.** Splitting a feature into stacked MRs is not required for the MVP and remains a future design consideration. This ruling does not prescribe the deferred splitting mechanics.
+**Affected.** [11.4](design/11-publish-lifecycle.md#11.4%20Splitting%20a%20huge%20MR), [MVP](design/README.md#MVP)
+**Source.** [R46. [high] Splitting a huge MR: chunk worktrees, failures, push and verification, later rounds](reviews/2026-10-16-adversarial-design-review.md#R46.%20[high]%20Splitting%20a%20huge%20MR:%20chunk%20worktrees,%20failures,%20push%20and%20verification,%20later%20rounds)
+**Status.** recorded 2026-10-27
+Answers: R46
+
+### 1.10 Remote CI: no post-push monitoring or automatic repair for now
+
+**Context.** The narrowed [R51](reviews/2026-10-16-adversarial-design-review.md#R51.%20[high]%20The%20ci%20job:%20scope,%20CI%20steps%20that%20can't%20run%20locally,%20and%20its%20fix%20skill) question asked whether OMC should push, monitor required remote CI and fix failures before reporting publication complete. The owner answered: "no, for now it should not monitor CI".
+**Decision.** For now, OMC does not monitor remote CI after pushing and does not add automatic post-push CI polling or a remote-CI repair loop. Local pre-push checks remain in place, and publication reporting states only what was verified without claiming that remote CI passed.
+**Affected.** [9.2](design/09-run-jobs.md#9.2%20Commands), [10.5](design/10-review-lifecycle.md#10.5%20%60ci-gate%60), [11.3](design/11-publish-lifecycle.md#11.3%20%60create-mr%60)
+**Source.** [R51. [high] The ci job: scope, CI steps that can't run locally, and its fix skill](reviews/2026-10-16-adversarial-design-review.md#R51.%20[high]%20The%20ci%20job:%20scope,%20CI%20steps%20that%20can't%20run%20locally,%20and%20its%20fix%20skill)
+**Status.** recorded 2026-10-27
+Answers: R51
+
+### 1.11 Updates adopt changed defaults while preserving explicit overrides
+
+**Context.** [R4](reviews/2026-10-16-adversarial-design-review.md#R4.%20[blocker]%20Writing%20every%20key's%20default%20into%20repo.yaml%20disables%20the%20shared%20config%20layer%20and%20freezes%20old%20defaults) concerns inherited defaults being frozen as explicit configuration. The foreground asked: "I recommend updates automatically adopt new OMC defaults for settings you haven’t overridden, while preserving your explicit overrides. Should updates work that way?" The owner answered: "yes".
+**Decision.** Updates adopt changed OMC defaults for settings without explicit user overrides while preserving explicit overrides. Inherited values are not treated as frozen explicit choices.
+**Affected.** [1.2](design/01-principles.md#1.2%20Cross-cutting%20rules), [2.5](design/02-repos-and-config.md#2.5%20Config), [6.1](design/06-lifecycles.md#6.1%20Lifecycles)
+**Source.** [R4. [blocker] Writing every key's default into repo.yaml disables the shared config layer and freezes old defaults](reviews/2026-10-16-adversarial-design-review.md#R4.%20[blocker]%20Writing%20every%20key's%20default%20into%20repo.yaml%20disables%20the%20shared%20config%20layer%20and%20freezes%20old%20defaults)
+**Status.** recorded 2026-10-27
+Answers: R4
+
+### 1.12 E2E fixtures: reaffirm use of the four existing test repositories
+
+**Context.** For [R23](reviews/2026-10-16-adversarial-design-review.md#R23.%20[high]%20E2E%20environment:%20SSH-only%20identity,%20writes%20to%20a%20real%20forge,%20open-source-only%20rule,%20macOS%20features), the foreground asked: "I recommend real GitHub test repositories for MR creation and comments, with isolated resources and cleanup. Should those tests use real GitHub?" The owner answered: "Didn't I already provide you with 4 test repos? Use them". This reaffirms the existing four-repository fixture requirement rather than choosing new infrastructure.
+**Decision.** Use the four test repositories already specified in [13.2](design/13-testing.md#13.2%20The%20E2E%20tests) for E2E testing, including forge-facing MR creation and comments. Do not provision substitute or additional test repositories or a local replacement forge; the existing four-repo and scenario constraints apply.
+**Affected.** [13.2](design/13-testing.md#13.2%20The%20E2E%20tests)
+**Source.** [R23. [high] E2E environment: SSH-only identity, writes to a real forge, open-source-only rule, macOS features](reviews/2026-10-16-adversarial-design-review.md#R23.%20[high]%20E2E%20environment:%20SSH-only%20identity,%20writes%20to%20a%20real%20forge,%20open-source-only%20rule,%20macOS%20features)
+**Status.** recorded 2026-10-27
+Answers: R23
+
+### 1.13 E2E tests: deterministic drivers by default, real agents for agent behavior
+
+**Context.** For [E1](reviews/2026-10-16-adversarial-design-review.md#E1.%20[high]%20Which%20E2E%20tests%20use%20an%20LLM), the owner approved the current question's proposed testing policy and explicitly clarified that the answer applies only to that current question, not the upcoming question about executable hooks.
+**Decision.** Deterministic E2E tests drive the CLI and MCP directly. Real Claude/Codex sessions are reserved for E2E tests whose subject is agent behavior.
+**Affected.** [13.2](design/13-testing.md#13.2%20The%20E2E%20tests)
+**Source.** [E1. [high] Which E2E tests use an LLM](reviews/2026-10-16-adversarial-design-review.md#E1.%20[high]%20Which%20E2E%20tests%20use%20an%20LLM)
+**Status.** recorded 2026-10-27
+Answers: E1
+
+### 1.14 Trust the personal OMC repo and activate synced executable updates automatically
+
+**Context.** For [R28](reviews/2026-10-16-adversarial-design-review.md#R28.%20[high]%20Executables%20in%20the%20omc%20repo%20run%20without%20trust%20after%20auto-sync), the owner approved the current question's recommendation to trust the personal OMC configuration repository as a whole and let synchronized executable-hook updates take effect without fresh approval for each change. The upcoming baseline-repair question was a preview and is not answered by this approval.
+**Decision.** The personal OMC configuration repository is trusted as a whole. Synchronized updates to its executable hooks may run automatically without fresh per-change approval. This does not grant execution trust to product repositories or change their separate trust requirements.
+**Affected.** [2.3](design/02-repos-and-config.md#2.3%20Your%20omc%20repo), [3.3](design/03-watch.md#3.3%20Sync%20every%20tick), [5.5](design/05-skill-rendering.md#5.5%20Hook%20contributions)
+**Source.** [R28. [high] Executables in the omc repo run without trust after auto-sync](reviews/2026-10-16-adversarial-design-review.md#R28.%20[high]%20Executables%20in%20the%20omc%20repo%20run%20without%20trust%20after%20auto-sync)
+**Status.** recorded 2026-10-27
+Answers: R28
+
+### 1.15 Investigate and fix observed failures without a separate baseline-repair task
+
+**Context.** For [R42](reviews/2026-10-16-adversarial-design-review.md#R42.%20[high]%20A%20red%20base%20vs%20the%20no-bypass%20rule), the owner rejected offering a separate baseline-repair task before feature implementation. Existing gates and usually CI are expected to keep the baseline healthy; an observed failure should prompt investigation of the current changes or a flaky test rather than an assumption that unrelated baseline breakage explains it.
+**Decision.** Do not introduce a separate baseline-repair task for failures labeled unrelated. Investigate failures encountered during feature work, including whether the current changes caused them or exposed a flaky test, and debug and fix them through the normal harness. Do not dismiss those failures as an accepted broken baseline or bypass the existing gates.
+**Affected.** [03-watch](design/03-watch.md), [09-run-jobs](design/09-run-jobs.md), [08-implement-lifecycle](design/08-implement-lifecycle.md)
+**Source.** [R42. [high] A red base vs the no-bypass rule](reviews/2026-10-16-adversarial-design-review.md#R42.%20[high]%20A%20red%20base%20vs%20the%20no-bypass%20rule)
+**Status.** recorded 2026-10-27
+Answers: R42
