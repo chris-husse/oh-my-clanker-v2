@@ -1,0 +1,82 @@
+# 13. Testing
+
+v1 was thin on testing. v2 tests everything, end to end.
+
+## 13.0 This repo's rule (in effect now)
+
+This repo follows the protection rules below by hand; the rule text lives in
+`AGENTS.md` (`CLAUDE.md` imports it):
+
+- `docs/design/` and `docs/e2e-tests/` are protected: any change needs your explicit
+  approval of its nature (what it covers, why, which design part it verifies),
+  never of code.
+- `docs/e2e-tests/` holds **only Markdown definitions**, one per test or scenario. The
+  test code is derived from them and lives in `tests/e2e/`. It implements its
+  definition and nothing more; testing something different means changing the
+  definition first, with approval.
+- Design and definitions change together, as one proposal and one approval.
+
+## 13.1 The product design workflow
+
+**Not part of the MVP** (parked 2026-10-16; open questions in
+[open-questions §L](open-questions.md#L.%20Testing:%20the%20product%20design%20workflow%20(13-testing.md%20§13.1)%20—%20parked,%20not%20MVP)). It turns [§13.0](#13.0%20This%20repo's%20rule%20(in%20effect%20now)) into an omc feature that any repo can switch on.
+
+A critical workflow fork of omc v2, **off by default**, for new projects
+developed from the ground up this way (this repo is the first, as a prototype).
+
+- **The rules (the protection layer):**
+  - `docs/design/` (the high-level design) and `docs/e2e-tests/` are tied together.
+    `docs/e2e-tests/` codifies the design: if it isn't in `docs/design/`, it can't be in
+    `docs/e2e-tests/`; if it isn't in `docs/e2e-tests/`, it isn't a feature;
+  - every feature has E2E tests, and therefore a design artifact in `docs/design/`;
+  - every E2E test points clearly to the design facts it exercises;
+  - **an implementation may change E2E tests, but only within the confines of the
+    design:** no E2E test without a design artifact, and no change that makes an
+    E2E test diverge from the design without your explicit approval;
+  - **design and E2E tests change only in tandem, and only with your approval of
+    the nature of the change:** what it tests, why it is needed, and which design
+    part it verifies. You never approve test code; this is about the spirit.
+- `docs/design/` holds the high-level design artifacts. Per-feature designs made by
+  the design lifecycle (superpowers-based) live in `docs/features/`
+  (`design_artifact_root: repository`, `design_artifact_directory: docs/features`).
+- **Enabled in `omc configure`:** *Use product design workflow: Enabled |
+  Disabled*.
+- **When enabled, omc imports the rules** into the design, planning and review
+  steps, through a `<match>` on the flag, so agents can't break them by accident.
+  For now that is the whole harness: rules in the skills, no Python enforcement.
+  Later the exact flow gets baked into lifecycles and plugins.
+- **Coverage must be reviewable:** that each E2E test covers specific design
+  artifacts, and, eventually, that every design artifact has an E2E test.
+
+### The flow for this repo (prototype)
+
+1. Iterate on the design in `docs/design/`.
+2. Build the Jira tasks that implement the design.
+3. Harden each task: does it actually work, roughly in that order, and what can
+   run in parallel.
+4. Each task adds E2E tests, each pointing clearly to the design facts it
+   exercises.
+
+## 13.2 The E2E tests
+
+- **Everything** is tested end to end, except what is Kraken-related: multi-repo
+  support, `omc watch` with multiple repos and checkouts, repo discovery in the
+  middle of a design, and so on. If the design describes it, a test proves it.
+- **Open source and non-internal only:** every test, fixture and dependency.
+- **In Docker,** fast and lightweight, so many run in parallel.
+- **The test repos** are four public GitHub repos forming a diamond dependency:
+
+  ```
+                 oh-my-clanker-test-repo-a
+                  ↗                     ↖
+  oh-my-clanker-test-repo-b-depends-on-a   oh-my-clanker-test-repo-c-depends-on-a
+                  ↖                     ↗
+          oh-my-clanker-test-repo-d-depends-on-c-and-b
+  ```
+
+  All four live under `github.com/chris-husse/` and were empty on 2026-10-14
+  (public, issues enabled, no license yet).
+- **Scenarios are branches** in those repos: each scenario sets up whatever state
+  a test needs.
+- Anything that can't be expressed with these four repos is reported, not worked
+  around.

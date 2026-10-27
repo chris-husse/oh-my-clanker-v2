@@ -1,0 +1,6 @@
+root: docs
+log: decision-log.md
+corpus: [design/**/*.md, e2e-tests/**/*.md]
+history: [reviews/**]
+generated: []
+exclude: [superpowers/**]
