@@ -37,6 +37,12 @@ Before anything:
   follow-ups: preserve uncertainties for the next review/validation pass without inventing policy.
 - Ask only about materially different workable choices not settled by existing material.
   Resolve ordinary implementation details and correctness requirements without asking the owner.
+  A question with one clear recommendation, no close alternative and no high impact (the
+  **obvious** class of step 4) is decided by the session, never asked; the owner delegated these
+  on 2026-10-27 because answering every question of a large review is not sustainable. Its ruling
+  is recorded like any other, with the Decision ending in the sentence `Decided automatically by
+  the review session under the owner's standing delegation: one clear recommendation, no close
+  alternative.` so the log shows which rulings the owner did not make in person.
 - The commits of a cycle are the review file at the gate, the commits of steps 7 and 8 (one per
   ruling by `/apply-decision`, one `Carried:` commit per pass for the documents the carry-document
   agents edited) and the
@@ -133,8 +139,14 @@ unit or per merged question, each with the references it merges and its bucket f
 
 A unit with a settled part and an open part gets both marks.
 
-Then split the question list into two classes:
+Then split the question list into three classes:
 
+- **obvious**: one recommendation is clear (the review file's own recommendation, or the direction
+  the rest of the corpus and the log already take), no alternative comes close, and the choice is
+  not high-impact. High-impact means any of: it changes the MVP's scope; it is a legal, licensing,
+  credential or owner-environment matter; it forks the architecture of a lifecycle, the render
+  path or the watch process; or it changes what the owner must do by hand. Obvious questions are
+  never asked: the session decides them itself (step 5) and tells the owner which they were.
 - **confirmation**: the comment already states a decision (or the review file records the
   owner's answer to it), and what disagrees is only text written before it. Asking is approval,
   not deciding: the owner mostly says yes.
@@ -142,8 +154,10 @@ Then split the question list into two classes:
   the comment does not choose; the comment leaves the actual choice open; or two comments or
   answers pull apart.
 
-When in doubt, a real question. Tell the owner the counts: settled, dropped, confirmations, real
-questions.
+When in doubt between obvious and anything else, it is not obvious; when in doubt between
+confirmation and real question, a real question. Tell the owner the counts: settled, dropped,
+obvious, confirmations, real questions, and list the obvious ones in one line each (reference and
+the decision to be recorded) so the owner can promote any of them to a question before step 5.
 
 ### 5. Confirm, then ask
 
@@ -161,6 +175,13 @@ line, `new-section` is skipped, and `just decisions list --section N` shows the 
 already holds; copy the section as it stands, its header block and those entries
 (`sed -n '/^## N\. /,$p' docs/decision-log.md`: the open section is the last one, so these are its own lines), to
 the top of `## Rulings as written` in the worksheet. Otherwise the section is opened before the first ruling, below.
+
+**Obvious questions first, without asking.** Before the first displayed question, record every
+question classed obvious at step 4 as a ruling, in the consequence order, through the same
+`add-decision` command below, the Decision ending in the automatic-decision sentence of the
+preamble; the worksheet entry gets `auto-decided` in place of an owner answer. Say in one line
+how many were recorded and their ids. The owner may reopen any of them at a status line, which
+makes it a real question of the next pass; its ruling is then superseded, never edited.
 
 **Current question and upcoming preview.** Use the next two unanswered prepared questions
 from the worksheet, confirmations first and then real questions. Start each with
@@ -402,6 +423,9 @@ After the last file, say that the list is done and stop.
   `show <id>` one earlier ruling for a carry prompt, nothing more; `/apply-decision` at step 7
   reads what its own skill says.
 - Never present both displayed questions as active, or treat a preview as an answer or approval.
+- Never ask an obvious question, and never auto-decide a high-impact one: a scope change, a legal,
+  licensing, credential or owner-environment matter, an architectural fork, or a change to what
+  the owner does by hand is asked, however clear the recommendation.
   Label the preview exactly `Upcoming (Don't answer yet)`; only the current question asks for an answer.
 - Never delegate answer recording, fabricate missing policy, or treat an unverified write as recorded.
 - Never paste an answer as a ruling; interpret and clean it up.

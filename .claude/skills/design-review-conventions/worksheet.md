@@ -20,8 +20,9 @@ sections:
 
 - `## Units`: the units of the review file, in file order, each with its reference.
 - `## Questions`: one entry per finding or merged question, whatever its bucket, with the
-  comment references it merges, its bucket in each iteration, its question number/order and
-  total, current/upcoming role, exact presented question and owner answer, pending uncertainties,
+  comment references it merges, its bucket in each iteration, its class (obvious, confirmation,
+  real question), its question number/order and total, current/upcoming role, exact presented
+  question and owner answer (or `auto-decided` for an obvious one), pending uncertainties,
   confirmed ruling id, and the commit that applied it.
 - `## Status lines`: every status line shown, in order.
 - `## Rulings as written`: each ruling as entered in the decision log.
