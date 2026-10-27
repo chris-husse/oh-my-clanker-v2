@@ -2,7 +2,7 @@
 
 Every open design question, asked one at a time, with your answer. Sources: the adversarial design review (`docs/reviews/2026-10-16-adversarial-design-review.md`, refs R1–R93) and the open E2E questions (E1–E3). Each answer is also written into `design/` in the same turn.
 
-**Status: 2 of 99 answered, 2 parked, 95 open.**
+**Status: 3 of 101 answered (Q2 for trust), 2 parked, 96 open.**
 
 ## Q1 (R1, blocker): MVP scope of multi-repo work
 
@@ -32,7 +32,7 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 ## Q2 (R2, blocker): The agent can run the user-only gates: trust, trust --all, reset-rounds, configure
 
-**Status:** open
+**Status:** answered for trust 2026-10-27; the other gates move to Q101
 
 **Where:** 01-principles.md §1.2 CLI = MCP, §1.3 no auth, 02-repos-and-config.md §2.6, 04-mcp-and-cli.md §4.1, §4.2, §4.6, 05-skill-rendering.md §5.2 allowed-tools Bash(omc …), §5.7, 08-implement-lifecycle.md §8.4, 03-watch.md §3.4
 
@@ -48,9 +48,9 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 **Cost if wrong:** The trust gate and the bounded fix loop can be bypassed with one tool call, and a malicious repo gets code execution.
 
-**Answer:** —
+**Answer (trust):** Trust supports whole mirrors, e.g. a company's. External mirrors can never be in the multi-repo chain apart from GitNexus indexing. Anything that runs build scripts must be explicitly listed, and the CLI command for that is not an MCP tool and is explicitly forbidden to the agent.
 
-**Recorded in:** —
+**Recorded in:** 02 §2.6 (index-only by default, `trusted_repos` + `trusted_mirrors`, external mirrors index-only in chains, user-only trust commands; assumed: interactive terminal required); 01 §1.2 CLI = MCP exception; 04 §4.6 (`trust --all` replaced by `trust --mirror`); 05 §5.2.
 
 ## Q3 (R3, blocker): Who writes and locks the omc repo: configure/update run without watch, but only watch may write
 
@@ -2156,6 +2156,49 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 **Recommendation:** (a) for the MVP.
 
 **Cost if wrong:** without links and order, reviewers merge a downstream repo that needs an unmerged upstream change.
+
+**Answer:** —
+
+**Recorded in:** —
+
+## Q100 (follow-up to Q2, high): Can a repo on an external mirror be trusted on its own?
+
+**Status:** open
+
+**Where:** 02-repos-and-config.md §2.6, 14-cross-repo-features.md §14.2, 13-testing.md §13.2
+
+**Problem:** External mirrors are index-only in a multi-repo chain. It is not settled whether a single repo on an external mirror (for example on github.com) can still be trusted on its own, so it can be built when you work on that repo directly. omc v2 itself and the four E2E test repos live on github.com.
+
+**Question:** Can `omc repo <repo> trust` trust a repo whose mirror is not trusted?
+
+- (a) Yes, for single-repo work: it can be built and tested when it is the repo you work in, but it still never joins a multi-repo chain. To chain repos on github.com (like the test diamond), you trust that mirror prefix (`git@github.com:chris-husse/`).
+- (b) No: repos on untrusted mirrors are always index-only; you trust the mirror prefix to build anything there.
+
+**Recommendation:** (a). Otherwise omc can't build omc itself without trusting a GitHub prefix.
+
+**Cost if wrong:** (b) forces broad mirror trust for one repo; (a) needs omc to tell "trusted alone" from "trusted by mirror" when forming a chain.
+
+**Answer:** —
+
+**Recorded in:** —
+
+## Q101 (rest of Q2, blocker): The other user-only gates: reset-rounds, configure, and unauthenticated MCP
+
+**Status:** open
+
+**Where:** 08-implement-lifecycle.md §8.4, 04-mcp-and-cli.md §4.1, §4.6, 05-skill-rendering.md §5.2, 01-principles.md §1.3
+
+**Problem:** Trust is settled. Still open: `omc internal reset-rounds` (it lifts the fix loop's stop and is called "only after your reply", but nothing enforces that), configure writes, and the MCP server accepting calls from any local process without authentication.
+
+**Question:** What enforces these?
+
+- (a) reset-rounds and configure writes become user-only like trust (CLI only, never MCP, interactive terminal); stubs pre-approve exact `omc` subcommands rather than `omc …`; a per-start secret in a 0600 file authenticates CLI and agent calls to watch.
+- (b) Keep reset-rounds agent-callable after your reply (instruction only), make configure writes user-only, add the secret.
+- (c) Only make configure writes user-only.
+
+**Recommendation:** (a).
+
+**Cost if wrong:** with (b) or (c), one agent tool call removes the fix loop's bound, and other local processes can drive watch.
 
 **Answer:** —
 

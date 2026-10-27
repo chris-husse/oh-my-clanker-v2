@@ -46,7 +46,9 @@
 - **No hidden config.** When a config file is created, every key is written with
   its default. Code never falls back to a value that isn't in a file.
 - **CLI = MCP.** Every MCP tool is a CLI command and vice versa, backed by the
-  same Python function. The MCP server is "a glorified CLI".
+  same Python function. The MCP server is "a glorified CLI". The one exception is
+  the user-only trust commands, which are never MCP tools
+  (02-repos-and-config.md §2.6).
 - **No bypass of gates.** A stage passes only when every test passes. There are
   no baseline-failure lists, skip flags or "known failures". Only Python writes a
   passing verdict.

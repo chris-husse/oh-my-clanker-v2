@@ -19,7 +19,8 @@ gets.
 The installed plugin skills are short stubs, separate per provider:
 
 - **Claude:** the stub body is `` !`omc lifecycle design` `` with
-  `allowed-tools: Bash(omc …)` in its frontmatter. Claude's preprocessing runs the
+  `allowed-tools: Bash(omc …)` in its frontmatter (never covering the user-only
+  trust commands, 02-repos-and-config.md §2.6). Claude's preprocessing runs the
   command before the model sees the skill and inlines its output, so rendering
   costs **no tool call**.
 - **Codex:** no preprocessing exists, so the stub says *"Run `omc lifecycle design`

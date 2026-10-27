@@ -165,14 +165,31 @@ design_artifact_root: omc            # default: your omc repo, repos/<key>/docs/
 
 - **Code execution needs trust.** Before anything builds, tests or otherwise runs
   a repo's code, you confirm that you trust the repo.
+- **Every repo is index-only unless explicitly listed.** An index-only repo is
+  cloned, GitNexus-indexed and queryable (14-cross-repo-features.md §14.1), and
+  nothing of it ever runs: no `/auto-integrate`, no setup, no `omc run` job.
+  Anything that runs build scripts must be explicitly listed.
+- **The list has two kinds of entry:** single repos (`trusted_repos`) and whole
+  **mirrors** (`trusted_mirrors`), for example a company's Git host or group,
+  given as an SSH URL prefix (`git@gitlab.example.com:company/`). A repo is
+  trusted when it is listed or its SSH URL starts with a trusted mirror's prefix.
+- **External mirrors are index-only in a multi-repo chain.** A repo whose URL is
+  under no trusted mirror can never be part of a multi-repo chain
+  (14-cross-repo-features.md §14.2), apart from GitNexus indexing.
+- **The trust commands are user-only.** `omc repo <repo> trust` and
+  `omc repo trust --mirror <ssh-url-prefix>` are CLI commands only: never MCP
+  tools (the one exception to "CLI = MCP", 01-principles.md §1.2), never
+  pre-approved in any stub's `allowed-tools`, and every skill forbids the agent to
+  call them. An agent that needs a repo trusted tells you the command.
+  Assumed: both also refuse to run without an interactive terminal.
 - **How you're asked:** watch sends a plain macOS notification via `osascript`
   (no new dependency): *"omc: trust hummingbird-bridge? It will try to build and
   test it. Run `omc repo hummingbird-bridge trust`."* The request also shows in
   watch's log until answered. You answer with `omc repo <repo> trust` or in the
   Repositories section of `omc configure`.
-- **Where it's stored:** local config, `trusted_repos`, because trust grants code
-  execution on this machine. `omc repo trust --all` trusts every repo in your omc
-  repo at once, for setting up a new machine.
+- **Where it's stored:** local config, `trusted_repos` and `trusted_mirrors`,
+  because trust grants code execution on this machine. On a new machine,
+  trusting your company's mirrors covers most repos at once.
 - **What it covers:** every code execution watch does for that repo:
   `/auto-integrate` and every `omc run` job. Indexing, doc surveys and queries
   don't need it.

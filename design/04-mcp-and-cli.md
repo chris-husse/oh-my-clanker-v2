@@ -94,8 +94,9 @@ omc publish [--claude|--codex] [--headless]
 omc resume                                  # parked
 omc repo list
 omc repo add <ssh-url>
-omc repo trust --all
-omc repo <repo> status | wait | trust
+omc repo trust --mirror <ssh-url-prefix>     # user-only, never an MCP tool
+omc repo <repo> status | wait
+omc repo <repo> trust                       # user-only, never an MCP tool
 omc repo <repo> gitnexus query|context|impact|cypher …
 omc repo <repo> docs-grep …
 omc repo <repo> worktree create <slug>
