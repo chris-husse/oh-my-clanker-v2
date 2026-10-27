@@ -16,4 +16,4 @@ Rules:
 - Nothing here is design. Agents never read this folder, except the file under review and its iterations, which
   the review skills (`/review-design`, `/validate-design`) read for the cycle they run. A person reads it to learn
   what a decision came from.
-- The links in these files are pinned once their lines are on `main` ([LINKS.md](../LINKS.md)).
+- The links in these files are pinned once their lines are on `main` ([LINKS.md](../LINKS.md "git:c29519177f29")).
