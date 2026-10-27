@@ -1,0 +1,4 @@
+# The chain of generated files: what each stage reads, what it writes, which skill regenerates it.
+# `just ensure-up-to-date` generates dvc.yaml from this file; edit this, never dvc.yaml.
+dvc: 3.67.1
+stages: {}
