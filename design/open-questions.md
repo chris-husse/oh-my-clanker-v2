@@ -60,8 +60,6 @@ document and removes it from this file.
   omc repo.
 - **Per-branch cache contents:** what remains in `~/.omc2/repos/<key>/branches/<branch-file>/`
   now that lifecycle working files live in `/tmp`.
-- **Cross-repo features:** how one feature spans several repos (v1's multi-repo
-  workspace design is the reference), rebuilt on watch.
 
 ## L. Testing: the product design workflow (13-testing.md §13.1) — parked, not MVP
 

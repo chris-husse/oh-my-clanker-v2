@@ -2,11 +2,11 @@
 
 Every open design question, asked one at a time, with your answer. Sources: the adversarial design review (`docs/reviews/2026-10-16-adversarial-design-review.md`, refs R1–R93) and the open E2E questions (E1–E3). Each answer is also written into `design/` in the same turn.
 
-**Status: 0 of 96 answered.**
+**Status: 1 of 99 answered.**
 
 ## Q1 (R1, blocker): MVP scope of multi-repo work
 
-**Status:** open
+**Status:** answered 2026-10-27
 
 **Where:** 01-principles.md §1.1, README.md §MVP, open-questions.md §H Cross-repo features, 13-testing.md §13.2, 04-mcp-and-cli.md §4.3, 05-skill-rendering.md §5.3 omc:is_multi_repo
 
@@ -22,9 +22,11 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 **Cost if wrong:** E2E tests can't be written for a feature that isn't designed, and re-keying every per-branch path later means a migration.
 
-**Answer:** —
+**Answer:** Neither (a) nor (c): both are MVP.
+1. Working on one repo, it must be easy to add, index and gather information from other repos in full depth.
+2. Changing several repos is supported too: one design spans several repos. Each repo gets a worktree (worktrunk) with the same slug. The main design creates sub-designs in the related repos. `/design`, `/implement` and `/review` each run in their own repo with full repo-local omc context, no different from running the task directly there. Implementation builds the repos in order, each inside its own repo, never from the main repo.
 
-**Recorded in:** —
+**Recorded in:** design/14-cross-repo-features.md; 01 §1.1 links it; open-questions §H entry removed.
 
 ## Q2 (R2, blocker): The agent can run the user-only gates: trust, trust --all, reset-rounds, configure
 
@@ -2083,6 +2085,71 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 **Recommendation:** (a).
 
 **Cost if wrong:** Tests copied from the wrong vector, and mismatched implementations.
+
+**Answer:** —
+
+**Recorded in:** —
+
+## Q97 (follow-up to Q1, blocker): How sub-designs are made
+
+**Status:** open
+
+**Where:** 14-cross-repo-features.md §14.2, 07-design-lifecycle.md §7.1
+
+**Problem:** The main design creates sub-designs in the related repos, and `/design` runs in each repo with full repo-local context. It is not settled whether each sub-design is a full design session of its own (brainstorm, hardening, plan, approval with you, in that repo's worktree), or whether the main session writes the sub-designs and each repo only hardens, plans and approves them. `omc design` today also creates the worktree itself and refuses an existing branch.
+
+**Question:** What runs in each related repo to produce its sub-design?
+
+- (a) At the main design's approval, omc creates each related repo's worktree with the same slug and writes a seed there: that repo's part of the main design plus a link to it. Each repo then runs its own full design lifecycle in its worktree (a session per repo, with you), ending in its own approved design and plan. `omc design` accepts a worktree omc already created.
+- (b) The main session writes every sub-design itself (it can read all repos through gitnexus and docs_grep); each repo runs only hardening, plan and approval in its own worktree.
+- (c) Like (a), but the per-repo sessions run headless and only surface questions to you.
+
+**Recommendation:** (a). It is the only option where each sub-design gets full repo-local context, which is what you asked for.
+
+**Cost if wrong:** (b) writes sub-designs without repo-local context; (a) means one interactive design session per related repo; (c) hides design decisions you'd otherwise see.
+
+**Answer:** —
+
+**Recorded in:** —
+
+## Q98 (follow-up to Q1, blocker): Building repos in order against unmerged upstream changes
+
+**Status:** open
+
+**Where:** 14-cross-repo-features.md §14.2, 08-implement-lifecycle.md, 09-run-jobs.md, 13-testing.md §13.2 (the diamond a ← b, c ← d)
+
+**Problem:** Implementation builds the repos in order, each in its own repo. Two things are unstated: where the order comes from, and how a downstream repo builds and tests against an upstream change that only exists in the upstream's unmerged worktree (b's check must see a's new code, not a's base).
+
+**Question:** Where does the order come from, and how does a downstream repo consume an unmerged upstream branch?
+
+- (a) The main design records the order (and which repos can run in parallel, e.g. b and c in the diamond). Each repo's integration declares how to point its build at a local checkout of a dependency (a path or override setting written by /auto-integrate); omc points it at the upstream worktree for the feature's slug.
+- (b) Order comes from a dependency graph omc derives from the repos' manifests; consumption as in (a).
+- (c) Each upstream is published (MR merged or a pre-release artifact) before the downstream implements.
+
+**Recommendation:** (a). The design already knows which repos change and why; deriving a graph from manifests is a project of its own.
+
+**Cost if wrong:** without a consumption mechanism, downstream checks pass or fail against the wrong upstream code; (c) serializes the whole feature behind reviews.
+
+**Answer:** —
+
+**Recorded in:** —
+
+## Q99 (follow-up to Q1, high): Review and publish across repos
+
+**Status:** open
+
+**Where:** 14-cross-repo-features.md §14.2, 10-review-lifecycle.md, 11-publish-lifecycle.md
+
+**Problem:** Each repo runs its own `/review`, but publish is unstated for a multi-repo feature: one MR per repo, how they reference each other, and in which order they may merge.
+
+**Question:** How are the per-repo MRs tied together?
+
+- (a) One MR per repo, each linking the others and the main design, with the merge order (upstream first) stated in every description.
+- (b) As (a), plus omc refuses to mark a downstream MR ready until its upstream MRs are merged.
+
+**Recommendation:** (a) for the MVP.
+
+**Cost if wrong:** without links and order, reviewers merge a downstream repo that needs an unmerged upstream change.
 
 **Answer:** —
 

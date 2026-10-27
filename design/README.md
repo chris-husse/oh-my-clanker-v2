@@ -32,6 +32,7 @@ lifecycles: design, implement, review and publish.
 | 11 | [11-publish-lifecycle.md](11-publish-lifecycle.md) | The publish lifecycle: creating, splitting and pushing MRs, review comments |
 | 12 | [12-session-memory.md](12-session-memory.md) | Per-branch memory: `omc memory add`, injection, retention |
 | 13 | [13-testing.md](13-testing.md) | Protected `design/` and `e2e-tests/`, E2E tests in Docker on the four test repos |
+| 14 | [14-cross-repo-features.md](14-cross-repo-features.md) | Reading other repos in depth; one design changing several repos, each with its own lifecycles |
 | — | [open-questions.md](open-questions.md) | Every open and parked question, in full |
 
 ## Naming

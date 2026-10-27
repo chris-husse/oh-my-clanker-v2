@@ -6,7 +6,8 @@
   once and exposes an MCP server agents talk to.
 - **Agents request repos.** watch checks a repo out, sets it up (`/auto-index`,
   then `/auto-integrate`) and lists it as usable. Features can then span several
-  repos, each with full omc integration: build, test, publish, explain.
+  repos, each with full omc integration: build, test, publish, explain
+  (14-cross-repo-features.md).
 - **No repo-local modification.** Nothing omc-specific is written into product
   repos. Integrations, hooks and config live in your omc repo, one folder per repo.
 - **Skills are cheap.** Deterministic work is Python in `omc internal`; the LLM
