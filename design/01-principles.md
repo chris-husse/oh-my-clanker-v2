@@ -31,6 +31,9 @@
   bounded time and returns the result or "pending". Whether jobs cancel each other
   depends on the job type: run jobs replace each other per worktree, repo
   additions never do.
+- **Build nothing that prevents cross-repo features.** Changing several repos in
+  one feature is not in the MVP, but the MVP must not rule it out
+  (14-cross-repo-features.md §14.3).
 - **The LLM may run tools itself, but converges on the Python API.** In the end it
   can do whatever it thinks is good; that's the whole point. But it should use
   omc's Python commands as much as possible, because they save tokens and time

@@ -2,7 +2,7 @@
 
 Every open design question, asked one at a time, with your answer. Sources: the adversarial design review (`docs/reviews/2026-10-16-adversarial-design-review.md`, refs R1–R93) and the open E2E questions (E1–E3). Each answer is also written into `design/` in the same turn.
 
-**Status: 1 of 99 answered.**
+**Status: 2 of 99 answered, 2 parked, 95 open.**
 
 ## Q1 (R1, blocker): MVP scope of multi-repo work
 
@@ -25,6 +25,8 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 **Answer:** Neither (a) nor (c): both are MVP.
 1. Working on one repo, it must be easy to add, index and gather information from other repos in full depth.
 2. Changing several repos is supported too: one design spans several repos. Each repo gets a worktree (worktrunk) with the same slug. The main design creates sub-designs in the related repos. `/design`, `/implement` and `/review` each run in their own repo with full repo-local omc context, no different from running the task directly there. Implementation builds the repos in order, each inside its own repo, never from the main repo.
+
+**Amended 2026-10-27 (with Q97):** changing several repos (point 2) is **not** MVP, but a design guideline: the MVP must not prevent it.
 
 **Recorded in:** design/14-cross-repo-features.md; 01 §1.1 links it; open-questions §H entry removed.
 
@@ -2092,7 +2094,7 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 ## Q97 (follow-up to Q1, blocker): How sub-designs are made
 
-**Status:** open
+**Status:** answered 2026-10-27
 
 **Where:** 14-cross-repo-features.md §14.2, 07-design-lifecycle.md §7.1
 
@@ -2108,13 +2110,17 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 **Cost if wrong:** (b) writes sub-designs without repo-local context; (a) means one interactive design session per related repo; (c) hides design decisions you'd otherwise see.
 
-**Answer:** —
+**Answer:** None of the options; `omc design` can't know the repos before the design exists.
+- Design: `/design` in the main repo produces one main design covering every repo, using full omc context of each related repo, and hardens it across the sub-repos from the main repo. Then one hardening subagent per sub-repo, in build order, each with that repo's context only. Then a final pass over the main design integrates the findings and alerts the user to problems.
+- Implement: the main repo's agent orchestrates subagents that implement each repo's part in build order, in their own sub-repos.
+- Review, staged: each sub-repo is reviewed individually by a subagent running the review lifecycle there, in order; the changes are integrated so the whole chain builds; then the final `/review` runs in the main repo.
+- Not MVP, but a design guideline so nothing built prevents adding it later.
 
-**Recorded in:** —
+**Recorded in:** design/14-cross-repo-features.md §14.2, §14.3 (constraints on the MVP, assumed); 01 §1.2; README §MVP.
 
 ## Q98 (follow-up to Q1, blocker): Building repos in order against unmerged upstream changes
 
-**Status:** open
+**Status:** parked 2026-10-27 with 14 §14.2 (not MVP)
 
 **Where:** 14-cross-repo-features.md §14.2, 08-implement-lifecycle.md, 09-run-jobs.md, 13-testing.md §13.2 (the diamond a ← b, c ← d)
 
@@ -2136,7 +2142,7 @@ Every open design question, asked one at a time, with your answer. Sources: the 
 
 ## Q99 (follow-up to Q1, high): Review and publish across repos
 
-**Status:** open
+**Status:** parked 2026-10-27 with 14 §14.2 (not MVP)
 
 **Where:** 14-cross-repo-features.md §14.2, 10-review-lifecycle.md, 11-publish-lifecycle.md
 
