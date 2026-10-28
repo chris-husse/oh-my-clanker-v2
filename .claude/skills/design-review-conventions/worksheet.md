@@ -20,9 +20,9 @@ sections:
 
 - `## Units`: the units of the review file, in file order, each with its reference.
 - `## Questions`: one entry per finding or merged question, whatever its bucket, with the
-  comment references it merges, its bucket in each iteration, its class (obvious, confirmation,
-  real question), its question number/order and total, current/upcoming role, exact presented
-  question and owner answer (or `auto-decided` for an obvious one), pending uncertainties,
+  comment references it merges, its bucket in each iteration, its class (confirmation, real
+  question) and for a real question its try-answer confidence and route (auto or ask), its question number/order and total, current/upcoming role, exact presented
+  question and owner answer (or `auto-decided` for an auto one), pending uncertainties,
   confirmed ruling id, and the commit that applied it.
 - `## Status lines`: every status line shown, in order.
 - `## Rulings as written`: each ruling as entered in the decision log.
@@ -43,6 +43,8 @@ Agent outputs sit beside the worksheet, one file per agent:
 - `carry-<doc>.md`: carry-document, the same `doc`; used by `/review-design` for
   settled-but-lagging comments; new rulings of a review are applied by `/apply-decision`, which
   writes no such file.
+- `answer-<ref>.md`: try-answer (`.claude/skills/try-answer-design-question/SKILL.md`), one per real
+  question; `ref` is the question's first reference.
 - `verify-<nn>.md`: verify-review; `nn` is the two-digit count of verify passes in the cycle,
   from `01`.
 
