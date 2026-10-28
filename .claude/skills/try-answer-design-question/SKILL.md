@@ -12,7 +12,9 @@ Input, in the prompt or as the argument:
   `.cache/try-answer/<ref>.md` under the repository root (`.cache/` is gitignored).
 - Optional, for a test against a ruling already made: **Blind before N.k**: read the decision log only up to the
   entry before `### N.k`, treat that entry and every later one as nonexistent, and ignore those ids in any tool
-  output. **Corpus at <commit>**: read the corpus only as `git show <commit>:<path>` (before commit `c295191` the
+  output. Enforce it with a truncated copy, never by reading around later entries: copy `docs/` to a fresh temporary
+  directory, cut the copy's `decision-log.md` at the line before `### N.k`, and run every `just decisions` command
+  as `just decisions --docs <copy> …`, so `history` and `search` cannot print a later ruling. **Corpus at <commit>**: read the corpus only as `git show <commit>:<path>` (before commit `c295191` the
   corpus lived under `design/`, not `docs/design/`).
 
 Every command starts from `ROOT=$(git rev-parse --show-toplevel)`. Never edit a file but the output. Never read
