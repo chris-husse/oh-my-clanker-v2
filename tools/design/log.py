@@ -12,11 +12,11 @@ from design.folder import FENCE_RE, Link, Target, closes_fence, decode_percent, 
 
 DEFAULT_LOG = 'decision-log.md'  # the log's name when no tools/corpus.yaml says otherwise; it sits at the docs root
 DEFAULT_ROOT = 'docs'  # the docs folder relative to the repository, likewise
-FIELDS = ['Context', 'Decision', 'Affected', 'Supersedes', 'Source', 'Status']
+FIELDS = ['Context', 'Decision', 'Automated', 'Affected', 'Supersedes', 'Source', 'Status']
 
 SECTION_RE = re.compile(r'^## (\d+)\. (.*?) \(([^)]*)\)\s*$')
 ENTRY_RE = re.compile(r'^### (\d+)\.(\d+) (.+?)\s*$')
-FIELD_RE = re.compile(r'^\*\*(Context|Decision|Affected|Supersedes|Source|Status)\.\*\* ?(.*)$')
+FIELD_RE = re.compile(r'^\*\*(' + '|'.join(FIELDS) + r')\.\*\* ?(.*)$')
 ANSWERS_RE = re.compile(r'^Answers: (.*)$')
 STATUS_RE = re.compile(r'^(?:note|recorded (\d{4}-\d\d-\d\d)(?: · applied (\d{4}-\d\d-\d\d)(, nothing to change)?)?)$')
 RULING_ID_RE = re.compile(r'^\d{1,3}\.\d{1,3}$')
@@ -34,6 +34,7 @@ class Entry:
     line: int  # 1-based line of the heading
     end: int  # exclusive 0-based index past the last line, trailing blanks trimmed: log.lines[line - 1:end] == lines
     fields: dict[str, str] = field(default_factory=dict)
+    automated_values: list[str] = field(default_factory=list)  # parsed occurrences, including duplicates
     answers: str | None = None
     lines: list[str] = field(default_factory=list)  # the heading through the last line
     file: str = DEFAULT_LOG  # the log's path relative to the docs folder, which its links are relative to
@@ -168,6 +169,8 @@ def parse_log(text: str, file: str = DEFAULT_LOG, root: str = DEFAULT_ROOT) -> L
             m = FIELD_RE.match(line)
             if m:
                 entry.fields[m.group(1)] = m.group(2)
+                if m.group(1) == 'Automated':
+                    entry.automated_values.append(m.group(2))
             a = ANSWERS_RE.match(line)
             if a:
                 entry.answers = a.group(1)

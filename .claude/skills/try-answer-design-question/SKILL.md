@@ -1,6 +1,6 @@
 ---
 name: try-answer-design-question
-description: Answer one design question of a review before the owner sees it - read the cited sections and their neighbours through the knowledge graph, read the decision history the way /how-we-got-here does, propose a ruling with its choice and its additions apart, rate confidence (high, medium, low), and reduce the question to its open part when not high. One answer file out, edits nothing. Run by /review-design step 4, one agent per question, or by the owner on a single question.
+description: "Independently answer one design review question from the corpus and ruling history. Separate the choice, conditions and additions, report contradictions and confidence, and write one answer file. Used by /review-design in a fresh agent after the orchestrator saves its own answer, or standalone by the owner. Never records a ruling."
 ---
 
 # Try to answer a design question
@@ -19,6 +19,13 @@ Input, in the prompt or as the argument:
 
 Every command starts from `ROOT=$(git rev-parse --show-toplevel)`. Never edit a file but the output. Never read
 `docs/reviews/` beyond the lines of the question's own item, nor `docs/superpowers/`.
+
+In a review run, use fresh context: no inherited conversation, orchestrator answer, worksheet,
+cluster recommendations, comparison or other agents' answer files. Read only the supplied neutral
+question, its source passages, relevant corpus and decision history, and the skill/tool instructions
+needed to investigate them. Do not inspect other files in the run directory. If a proposed answer
+or previous comparison was supplied or exposed, report the contamination and do not claim an
+independent answer; the caller must start a fresh agent. Your confidence alone never authorizes a ruling.
 
 ## 1. Where the question lives
 
@@ -41,8 +48,14 @@ code symbols only, so `query` ranks the tools above the design).
 Follow steps 1 to 3 of `.claude/skills/how-we-got-here/SKILL.md` for the question's topic: `just decisions history
 "<docs-relative path>#<heading>"` for every cited heading, `just decisions search --text '(?i)<word>' --oneline`
 for the topic's words, then read the rulings in full and follow `later:` pointers. Note what each ruling already
-settles for this question, and which rulings are the owner's own (a Decision without the sentence `Decided
-automatically by the review session`).
+settles for this question and its provenance: `**Automated.** true` means automated;
+`**Automated.** false` means human-recorded. Missing means legacy/unspecified, not proof of human
+authorship. For legacy entries, the old sentence `Decided automatically by the review session`
+is evidence of automation; otherwise inspect the recorded source before claiming human authorship.
+All effective existing rulings constrain the answer. Automated rulings carry less weight: never
+prefer one over a conflicting human or legacy ruling because it is newer; surface the conflict.
+An answer that would change an automated ruling may say so and name it. Follow human-directed
+successors to determine what still holds. Never restore withdrawn rulings from git history.
 
 ## 3. The answer
 
@@ -50,6 +63,8 @@ automatically by the review session`).
 - **Additions.** Anything beyond the choice that your ruling would also fix: mechanisms, keys, file names, a
   second behaviour. Each is listed apart, because an addition is where an answer most often decides what the owner
   did not ask and might not want.
+- **Scope and conditions.** State the limits and qualifications that must hold for your choice,
+  so the caller can compare substantive agreement rather than matching option names.
 - **The ruling.** Context in one or two sentences, Decision in one to three, in the corpus's words, every reference
   a Markdown link relative to `docs/` with `%20` for spaces and `%60` for backticks in anchors
   (`[09 §9.4](design/09-run-jobs.md#9.4%20The%20fix%20loop)`, a ruling `[1.2](#1.2%20<its title>)`). The Decision
@@ -78,6 +93,7 @@ Write the output file, under 500 words, in this form, and reply with only the co
 ## <ref>
 **Confidence:** high | medium | low — <one sentence why, naming any high-impact criterion>
 **Choice:** <the option, one line>
+**Scope and conditions:** <limits and necessary qualifications, or "none">
 **Closest alternative:** <the runner-up and why it is or is not close>
 **Evidence:** <one line per section or ruling that decides it>
 **Contradicts:** <ruling ids with the quoted clash, or "none">

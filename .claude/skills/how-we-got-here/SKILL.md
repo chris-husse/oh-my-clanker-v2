@@ -1,6 +1,6 @@
 ---
 name: how-we-got-here
-description: Answer a "how did we get here" question about the design ("why is trust a user-only command?", "why are sub-designs made from the main repo?") - find the design sections, E2E definitions and rulings the question is about, pull their decision chains with `just decisions`, read the rulings and follow the later ones that changed them, consult the design documents and the git history where the log leaves a gap, and answer with the history that led to today's design. Not "what is it" (that is /omc:explain); "how did it come to be". Commits nothing, edits nothing.
+description: "Answer a \"how did we get here\" question about the design (\"why is trust a user-only command?\", \"why are sub-designs made from the main repo?\") - find the design sections, E2E definitions and rulings the question is about, pull their decision chains with `just decisions`, read the rulings and follow the later ones that changed them, consult the design documents and the git history where the log leaves a gap, and answer with the history that led to today's design. Not \"what is it\" (that is /omc:explain); \"how did it come to be\". Commits nothing, edits nothing."
 ---
 
 # How we got here
@@ -41,6 +41,14 @@ ruling that brings in a new strand of the topic. A section pointer (`§N`) leads
 Read the rulings in full, in log order (`just decisions show <id> …`, several at once). For every `later:` pointer,
 read both rulings and decide what the later one actually changed, or that it only cites the earlier one. Never take
 the pointer's word for it.
+
+Read provenance from `Automated`: true is automated, false is human-recorded. Missing means
+legacy/unspecified; the historical sentence `Decided automatically by the review session`
+indicates legacy automation, but its absence alone does not prove a human decision. Inspect
+the source before attributing a legacy ruling. Automated rulings were bulk-accepted by the owner
+from proposals and carry less weight: one may supersede an automated ruling, never a human or
+legacy one, and it never overrides a human decision because it is newer. Report such a conflict
+explicitly. Distinguish recorded from applied.
 
 Where the log is not enough, go further:
 

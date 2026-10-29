@@ -1,6 +1,6 @@
 ---
 name: apply-decision
-description: Apply one recorded decision of docs/decision-log.md to the design corpus (docs/design/, and docs/e2e-tests/ when it exists), record the real affected set with `just decisions apply-decision`, and commit the documents and the log together, the decision as the commit message. Needs a tree clean but for the log and docs/reviews/iterations/. With no argument lists the recorded decisions and stops. It commits: run it only on the owner's word, or as step 7 of /review-design, which invokes it through the Skill tool.
+description: "Apply one recorded decision of docs/decision-log.md to the design corpus (docs/design/, and docs/e2e-tests/ when it exists), record the real affected set with `just decisions apply-decision`, and commit the documents and the log together, the decision as the commit message. Needs a tree clean but for the log and docs/reviews/iterations/. With no argument lists the recorded decisions and stops. It commits: run it only on the owner's word, or as step 7 of /review-design, which invokes it through the Skill tool."
 ---
 
 # Apply a decision
@@ -13,9 +13,16 @@ With no argument: `(cd "$ROOT" && just decisions search --status recorded --onel
 1. **Gate.** `(cd "$ROOT" && git status --porcelain)` may list only `docs/decision-log.md` (modified: the recorded
    entries waiting to be applied) and files under `docs/reviews/iterations/`; anything else stops with the list.
    `just decisions show <id>` must show `**Status.** recorded …`; an applied entry or a note stops with that word.
+   For an automated ruling (`Automated: true`, or a legacy automatic-attribution sentence),
+   confirm the owner has authorized the nature of the protected-document changes under AGENTS.md.
+   A bulk accept in `/review-design` is that authorization; the `Automated` field alone is not.
+   Without it, leave the ruling recorded and report the proposed changes.
 2. **History.** For every link in the entry's `Affected` and `Supersedes`, run
    `(cd "$ROOT" && just decisions history "<path>[#<heading>]")` (a superseded ruling by its id, `1.2`, a log section
    as `§N`) and read it whole. Edit from the full history of a passage, never from this one entry alone.
+   An automated ruling that conflicts with an effective human or legacy ruling requires a human
+   decision; it may supersede only automated rulings. A human-directed successor already supplies
+   that authority for its stated scope. Preserve Automated provenance when marking the decision applied.
 3. **Read the documents** the history and the entry name: the corpus files `tools/corpus.yaml` lists
    (`git ls-files -co --exclude-standard -- 'docs/design/*.md' 'docs/e2e-tests/*.md'`), starting from `docs/design/README.md`.
 4. **Edit.** Make every passage the decision reaches say what the decision says, in the corpus's own words, changing
@@ -45,7 +52,7 @@ With no argument: `(cd "$ROOT" && just decisions search --status recorded --onel
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>" -- docs/decision-log.md <files> $(cat "$ROOT/.cache/reconcile-links/changed.txt" 2>/dev/null) && git show --stat --format=%h HEAD)
    ```
 
-8. **Report** the commit and the files. One decision per run; the owner runs the next.
+8. **Report** the commit and the files. One decision per run; the owner runs the next, unless `/review-design` step 7 runs them in id order.
 
 ## Never
 

@@ -112,11 +112,11 @@ def test_no_link_leaves_the_folder(repo, docs):
 
 def test_kind_status_date(repo, docs):
     log = load(docs)[1]
-    assert format_oneline(log.entries['1.1']) == '1.1  recorded 2026-10-27 · applied 2026-10-27  First ruling'
+    assert format_oneline(log.entries['1.1']) == '1.1  recorded 2026-10-27 · applied 2026-10-27  Automated: unspecified  First ruling'
     assert format_oneline(log.entries['1.3']) == '1.3  note  Parked'
 
 def test_oneline(repo, docs):
-    assert format_oneline(load(docs)[1].entries['1.2']) == '1.2  recorded 2026-10-27  Second'
+    assert format_oneline(load(docs)[1].entries['1.2']) == '1.2  recorded 2026-10-27  Automated: unspecified  Second'
 
 def test_search_by_field(repo, docs):
     folder, log = load(docs)
@@ -224,7 +224,7 @@ def test_show_search_history_check(repo, docs, capsys):
     code, out = run('search', '--affected', 'design/02-x.md', '--ids')
     assert code == 0 and out.out.split() == ['1.1']
     code, out = run('search', '--status', 'recorded', '--oneline')
-    assert out.out == '1.2  recorded 2026-10-27  Second\n'
+    assert out.out == '1.2  recorded 2026-10-27  Automated: unspecified  Second\n'
     code, out = run('list')
     assert out.out.splitlines()[2] == '1.3  note  Parked'
     code, out = run('list', '--section', '2')
@@ -263,6 +263,7 @@ def test_add_decision(repo, docs):
         '### 1.4 Receipts', '',
         '**Context.** See [2.1](design/02-x.md#2.1%20Title).',
         '**Decision.** A photo.',
+        '**Automated.** false',
         '**Affected.** [2.1](design/02-x.md#2.1%20Title), [02-x](design/02-x.md)',
         '**Supersedes.** [1.2](#1.2%20Second), [§1](#1.%20Review:%20first%20(2026-10-27))',
         '**Source.** [R2. B](reviews/2026-10-16-first.md#R2.%20B)',
@@ -274,7 +275,7 @@ def test_add_decision(repo, docs):
 
 def test_add_decision_without_optional_fields(repo, docs):
     add_decision(*load(docs), 'Plain', 'Why.', 'What.', today='2026-10-28')
-    assert load(docs)[1].entries['1.4'].lines == ['### 1.4 Plain', '', '**Context.** Why.', '**Decision.** What.', '**Status.** recorded 2026-10-28']
+    assert load(docs)[1].entries['1.4'].lines == ['### 1.4 Plain', '', '**Context.** Why.', '**Decision.** What.', '**Automated.** false', '**Status.** recorded 2026-10-28']
 
 def test_add_decision_refuses_and_leaves_the_log_untouched(repo, docs):
     before = log_text(docs)
@@ -528,3 +529,141 @@ def test_a_run_outside_a_repository_is_an_error_without_a_traceback(tmp_path, mo
     assert main(['list']) == 2
     err = capsys.readouterr().err
     assert err.startswith('error: ') and 'Traceback' not in err
+
+
+@pytest.mark.parametrize('automated', [True, False])
+def test_automated_provenance_round_trip_and_apply(repo, docs, automated):
+    before = log_text(docs)
+    eid = add_decision(*load(docs), 'Provenance', 'Why.', 'What.', automated=automated)
+    entry = load(docs)[1].entries[eid]
+    assert entry.fields['Automated'] == str(automated).lower()
+    assert log_text(docs).startswith(before.rstrip() + '\n\n')
+    assert check(*load(docs), head_log_text(docs)) == []
+    apply_decision(*load(docs), eid, no_change=True)
+    entry = load(docs)[1].entries[eid]
+    assert entry.fields['Automated'] == str(automated).lower()
+    assert entry.status() == 'applied'
+    assert check(*load(docs), head_log_text(docs)) == []
+
+
+def test_automated_cli_search_distinguishes_legacy_and_notes(repo, docs, capsys):
+    base = ['--docs', str(docs)]
+    assert main(base + ['add-decision', '--title', 'Auto', '--context', 'c', '--decision', 'd', '--automated']) == 0
+    assert capsys.readouterr().out.strip() == '1.4'
+    assert main(base + ['add-decision', '--title', 'Human', '--context', 'c', '--decision', 'd']) == 0
+    capsys.readouterr()
+    for value, ids in [('true', '1.4'), ('false', '1.5'), ('unspecified', '1.1\n1.2')]:
+        assert main(base + ['search', '--automated', value, '--ids']) == 0
+        assert capsys.readouterr().out.strip() == ids
+    assert main(base + ['search', '--automated', 'true', '--status', 'applied', '--ids']) == 0
+    assert capsys.readouterr().out == ''
+    assert main(base + ['list']) == 0
+    output = capsys.readouterr().out
+    assert 'Automated: true' in output and 'Automated: false' in output and 'Automated: unspecified' in output
+    assert 'Automated:' not in next(line for line in output.splitlines() if line.startswith('1.3 '))
+
+
+@pytest.mark.parametrize('value', ['yes', 'True', '', 'false\n**Automated.** true'])
+def test_check_rejects_invalid_or_duplicate_automated(repo, docs, value):
+    text = LOG.replace('**Decision.** d\n', f'**Decision.** d\n**Automated.** {value}\n')
+    assert 'malformed-entry' in kinds(check(load(docs)[0], parse_log(text), None))
+
+
+def test_automated_may_supersede_automated(repo, docs):
+    first = add_decision(*load(docs), 'A', 'c', 'd', automated=True)
+    second = add_decision(*load(docs), 'B', 'c', 'd2', supersedes=[first], automated=True)
+    assert first in load(docs)[1].entries[second].fields['Supersedes']
+    assert check(*load(docs), head_log_text(docs)) == []
+
+
+def test_automated_cannot_supersede_human_legacy_or_section(repo, docs):
+    human = add_decision(*load(docs), 'H', 'c', 'd')
+    before = log_text(docs)
+    for supersedes in ([human], ['1.1'], ['§1']):
+        with pytest.raises(RefError, match='[Aa]utomated'):
+            add_decision(*load(docs), 'X', 'c', 'd', supersedes=supersedes, automated=True)
+    assert log_text(docs) == before
+
+
+def test_mixed_supersession_targets_refuse_the_whole_write(repo, docs):
+    auto = add_decision(*load(docs), 'A', 'c', 'd', automated=True)
+    before = log_text(docs)
+    with pytest.raises(RefError, match='[Aa]utomated'):
+        add_decision(*load(docs), 'X', 'c', 'd', supersedes=[auto, '1.1'], automated=True)
+    assert log_text(docs) == before
+
+
+def test_automated_cannot_supersede_an_automated_ruling_a_human_replaced(repo, docs):
+    auto = add_decision(*load(docs), 'A', 'c', 'd', automated=True)
+    add_decision(*load(docs), 'H', 'c', 'd2', supersedes=[auto])
+    before = log_text(docs)
+    with pytest.raises(RefError, match='human'):
+        add_decision(*load(docs), 'X', 'c', 'd3', supersedes=[auto], automated=True)
+    assert log_text(docs) == before
+
+
+def test_automated_cannot_supersede_a_chain_a_human_later_replaced(repo, docs):
+    a1 = add_decision(*load(docs), 'A1', 'c', 'd', automated=True)
+    a2 = add_decision(*load(docs), 'A2', 'c', 'd2', supersedes=[a1], automated=True)
+    add_decision(*load(docs), 'H', 'c', 'd3', supersedes=[a2])
+    before = log_text(docs)
+    with pytest.raises(RefError, match='human'):
+        add_decision(*load(docs), 'X', 'c', 'd4', supersedes=[a1], automated=True)
+    assert log_text(docs) == before
+
+
+def test_check_flags_automated_superseding_a_non_automated_entry(repo, docs):
+    # 1.2 supersedes the legacy 1.1 and §1
+    bad = LOG.replace('**Decision.** d\n', '**Decision.** d\n**Automated.** true\n')
+    assert 'malformed-entry' in kinds(check(load(docs)[0], parse_log(bad), None))
+
+
+@pytest.mark.parametrize('value', ['true', 1, None])
+def test_non_boolean_automated_argument_does_not_write(repo, docs, value):
+    before = log_text(docs)
+    with pytest.raises(RefError, match='[Aa]utomated'):
+        add_decision(*load(docs), 'T', 'c', 'd', automated=value)
+    assert log_text(docs) == before
+
+
+@pytest.mark.parametrize('replacement', ['**Automated.** false\n', ''])
+def test_recorded_automated_provenance_cannot_be_relabelled(repo, docs, replacement):
+    eid = add_decision(*load(docs), 'T', 'c', 'd', automated=True)
+    commit_all(repo, 'automated ruling')
+    changed = log_text(docs).replace('**Automated.** true\n', replacement)
+    problems = check(load(docs)[0], parse_log(changed), head_log_text(docs))
+    assert any(f': edited: {eid}' in problem for problem in problems)
+
+
+def test_legacy_provenance_remains_unspecified_and_notes_reject_it(repo, docs):
+    folder, log = load(docs)
+    assert check(folder, log, head_log_text(docs)) == []
+    assert all('Automated' not in e.fields for e in log.entries.values())
+    changed = LOG.replace('**Decision.** d\n', '**Decision.** d\n**Automated.** false\n')
+    assert any(': edited: 1.2' in p for p in check(folder, parse_log(changed), head_log_text(docs)))
+    note = LOG.replace('note text\n', 'note text\n**Automated.** false\n')
+    assert 'malformed-entry' in kinds(check(folder, parse_log(note), None))
+
+
+@pytest.mark.parametrize('hidden', ['false', 'yes'])
+def test_hidden_automated_fields_cannot_bypass_validation(repo, docs, hidden):
+    text = LOG.replace('**Decision.** d\n',
+                       f'**Decision.** d\n**Automated.** true\n<!--\n**Automated.** {hidden}\n-->\n')
+    assert 'malformed-entry' in kinds(check(load(docs)[0], parse_log(text), None))
+    hidden_only = LOG.replace('**Decision.** d\n', '**Decision.** d\n<!--\n**Automated.** yes\n-->\n')
+    assert 'malformed-entry' in kinds(check(load(docs)[0], parse_log(hidden_only), None))
+
+
+def test_fenced_provenance_example_does_not_change_recorded_value(repo, docs):
+    text = LOG.replace('**Decision.** d\n',
+                       '**Decision.** d\n**Automated.** false\n```\n**Automated.** true\n```\n')
+    log = parse_log(text)
+    assert log.entries['1.2'].fields['Automated'] == 'false'
+    assert check(load(docs)[0], log, None) == []
+
+
+def test_new_decision_cannot_omit_provenance_when_baseline_is_known(repo, docs):
+    text = LOG + '### 1.4 New\n\n**Context.** c\n**Decision.** d\n**Status.** recorded 2026-10-28\n'
+    problems = check(load(docs)[0], parse_log(text), head_log_text(docs))
+    assert any(': malformed-entry: 1.4' in p and 'Automated' in p for p in problems)
+    assert check(*load(docs), head_log_text(docs)) == []  # existing legacy entries remain valid

@@ -1,6 +1,6 @@
 ---
 name: review-design
-description: Review a committed file under docs/reviews/ with one current question and one upcoming preview. The orchestrator records answers through just decisions, applies rulings through /apply-decision, validates until the owner stops, then closes and commits the review. With no argument, offer undecided review files. The owner invokes this; never run it on your own.
+description: "Review a committed file under docs/reviews/. Independently answer each question in the orchestrator and fresh try-answer agents (waves of up to 20); non-conflicting agreements become proposed rulings shown in numbered batches of five, accepted ones are recorded as Automated, and the rest are asked individually with one upcoming preview. Apply authorized rulings and validate until the owner stops. The owner invokes this; never run it on your own."
 disable-model-invocation: true
 ---
 
@@ -16,14 +16,11 @@ the output file names). This file names them by path and does not restate them.
 
 Before anything:
 
-- This session never reads the decision log or the corpus, and never edits a corpus document
-  itself. Agents read them and report into the
-  run directory; `/apply-decision` (step 7) edits for a new ruling and carry-document agents
-  (steps 7 and 8) for a settled-but-lagging comment. The session reads the argument file, its
-  iteration files, the worksheet and the agent outputs, nothing heavier. Two exceptions:
-  `just decisions` and the open-section check print the section's own lines (steps 5 and 9) and
-  one earlier ruling for a carry prompt (`show <id>`, steps 7 and 8), and `/apply-decision` reads the history and the
-  documents one ruling reaches, as its own skill says.
+- The orchestrator reads the relevant corpus and decision history to form its own answers
+  and check conflicts. It never edits a corpus document itself: `/apply-decision` (step 7)
+  edits for an authorized new ruling and carry-document agents (steps 7 and 8) for an
+  authorized settled-but-lagging comment. The owner's bulk accept of a batch (step 5) is the
+  approval to apply those rulings; the `Automated` field alone grants none.
 - The orchestrator presents questions, records answers through `just decisions`, and maintains
   progress itself. Do not delegate answer recording or create a background recording queue.
 - Show one current question and the next unanswered question as a preview labeled exactly
@@ -37,12 +34,12 @@ Before anything:
   follow-ups: preserve uncertainties for the next review/validation pass without inventing policy.
 - Ask only about materially different workable choices not settled by existing material.
   Resolve ordinary implementation details and correctness requirements without asking the owner.
-  Every prepared question is first answered by a try-answer agent (step 4); an answer of high
-  confidence that contradicts no ruling is recorded by the session, never asked. The owner delegated
-  these on 2026-10-27 because answering every question of a large review is not sustainable. Such a
-  ruling's Decision ends in the sentence `Decided automatically by the review session under the
-  owner's standing delegation: one clear recommendation, no close alternative.` so the log shows
-  which rulings the owner did not make in person.
+  Every unresolved prepared question first gets two independent answers (step 4): the
+  orchestrator's saved, hidden answer, then a fresh `/try-answer-design-question` agent's answer.
+  Their substantive agreement, with no conflict with a human ruling, is a **proposed ruling**;
+  nothing reaches the log until the owner has seen it in a batch of five (step 5). A confidence
+  score alone never makes a proposal. Bulk-accepted rulings are recorded with `Automated: true`
+  and carry less weight than human rulings: they may supersede automated rulings only.
 - The commits of a cycle are the review file at the gate, the commits of steps 7 and 8 (one per
   ruling by `/apply-decision`, one `Carried:` commit per pass for the documents the carry-document
   agents edited) and the
@@ -54,8 +51,9 @@ Every command starts from `ROOT=$(git rev-parse --show-toplevel)` and runs in a 
 `<RUN>`, the section number in place of `N`, and the argument in place of `<argument>` in every
 command. Where a command uses `review_gate` or `review_undecided`, paste the whole function
 block of `review-files.md` section 3 into that subshell where the comment says so. Every agent
-is `subagent_type: general-purpose` with no `model` parameter; all agents of one step go in one
-message; wait for every one before reading any output; a missing output file is redispatched
+is `subagent_type: general-purpose` with no `model` parameter; cluster, validation and carry agents of one step go in one
+message; try-answer agents go in waves of at most 20, one question each, dispatched only after the
+orchestrator's answers for that wave are saved. Wait for completion before reading output; a missing output file is redispatched
 once with the same prompt (`agent-prompts.md` section 2). A session that dies mid-cycle is
 resumed from its worksheet, not restarted.
 
@@ -150,21 +148,55 @@ Then split the question list into two classes:
 
 When in doubt, a real question.
 
-**Try-answer.** Dispatch one try-answer agent per real question, at most twelve per message, a
-message after the previous one's agents have all returned. Each prompt is the every-prompt block
-of `agent-prompts.md` section 1, then: `Read and follow .claude/skills/try-answer-design-question/SKILL.md
-for the question below. Output: <RUN>/answer-<ref>.md.`, then the question's entry from the
-worksheet (references, both quoted passages, the question). A missing output is redispatched once.
-Read every `<RUN>/answer-*.md` and write each answer's confidence and ruling id-to-be into its
-question's entry under `## Questions`:
+**Independent answers, in waves.** For every unresolved prepared question, including
+confirmations, follow this sequence. A wave is at most 20 questions.
 
-- **auto**: confidence high and `Contradicts: none`. Recorded in step 5 without asking.
-- **ask**: everything else. Asked in step 5 with the answer's reduced question; its `I would
-  record` lines and its proposed ruling are shown as strikeable proposals, never as settled.
+1. For each question of the wave, read its cited corpus sections and relevant decision chains
+   (the first two steps of `.claude/skills/try-answer-design-question/SKILL.md`). Form your own
+   answer and save it as `<RUN>-hidden/orchestrator-<ref>.md` using that skill's output
+   structure. The `-hidden` folder sits beside the run directory and its path never appears in
+   an agent prompt.
+   Save the evidence version (HEAD plus any relevant working-tree changes and latest ruling id)
+   in the worksheet. Do this for the whole wave before dispatching it; never show these answers
+   to anyone, and do not delegate them. Whether you answer every question before the first wave
+   or stay one wave ahead is your call.
+2. Dispatch the wave in one message: one fresh agent per question, with no inherited
+   conversation or prior agent context. Use the independent-answer prompt in `agent-prompts.md`
+   section 7, not the general every-prompt block. Supply the review item's own text and the
+   cluster agent's question and quoted passages as written, the source references and explicit
+   human constraints; add no wording of your own. Exclude your answer,
+   cluster recommendations, other agents' conclusions, worksheet and comparisons. The agent
+   follows `/try-answer-design-question`, reads the sources itself, and writes
+   `<RUN>/answer-<ref>.md`. Never let it read other files in the run directory. A failed or
+   missing result is retried once with the same neutral prompt in a fresh agent; if still
+   missing, the question goes to the individual flow.
+3. Compare each pair as its answer arrives. Agreement means the same substantive decision,
+   scope, conditions and necessary additions, not matching wording, confidence or a bare yes/no.
+   An addition only one answer makes is dropped from the proposal, unless leaving it out changes
+   the meaning; then, as on any disagreement, missing facts or an answer that defers the choice,
+   the question is **individual**.
+4. Read the relevant current ruling chains again. A recorded ruling overrides lagging corpus
+   text. Check the proposed meaning, not just the agents' `Contradicts` field. An agreement that
+   conflicts with an earlier **human** ruling is **individual**, however confident: record which
+   ruling, its quoted passage and why the proposal would contradict it. Legacy rulings
+   (`Automated: unspecified`) count as human, and so does the human successor of an automated
+   ruling. An agreement that changes an **automated** ruling from an earlier pass is a
+   proposal that supersedes it; note the id and what it said. One that changes an automated
+   ruling recorded in this pass is **individual**. Repeat this check when the batch is built. If the evidence changed materially since
+   the answers, the question is **individual**.
+5. Save both answer paths, the comparison, the conflict check (with any conflicting human
+   ruling) and the route in the worksheet: **proposed** (full agreement, no human conflict) or
+   **individual**. Already settled questions reference the existing ruling rather than
+   generating duplicates.
 
-Tell the owner the counts: settled, dropped, confirmations, auto, ask; list the auto ones in one
-line each (reference and the decision to be recorded) so the owner can move any of them to ask
-before step 5.
+On resume, reuse completed answer pairs and recorded rulings. Never reconstruct an allegedly
+independent first answer after reading the second. Never open an `answer-<ref>.md` whose
+`<RUN>-hidden/orchestrator-<ref>.md` (or its `-rN`) is missing: mark it `discarded` in the worksheet and answer the question
+again from scratch, writing `orchestrator-<ref>-r2.md` and `answer-<ref>-r2.md` (the next `rN`
+if those exist too). Do not rerun completed pairs after each owner answer.
+
+Tell the owner the counts so far: settled, dropped, proposed, individual. Step 5 shows the
+batches as soon as five proposals are ready, while later waves still run.
 
 ### 5. Confirm, then ask
 
@@ -183,17 +215,58 @@ already holds; copy the section as it stands, its header block and those entries
 (`sed -n '/^## N\. /,$p' docs/decision-log.md`: the open section is the last one, so these are its own lines), to
 the top of `## Rulings as written` in the worksheet. Otherwise the section is opened before the first ruling, below.
 
-**Automatic rulings first, without asking.** Before the first displayed question, record every
-auto answer of step 4 as a ruling, in the consequence order, through the same `add-decision`
-command below: its Context and Decision as the answer proposed them, the Decision ending in the
-automatic-decision sentence of the preamble, its `I would also record` lines left out. The
-worksheet entry gets `auto-decided` in place of an owner answer. Say in one line how many were
-recorded and their ids. The owner may reopen any of them at a status line, which makes it a
-question of the next pass; its ruling is then superseded, never edited.
+**Batches of proposed rulings first.** As soon as five proposals are ready, show them as one
+batch, numbered 1 to 5 in consequence order within the batch; the last batch may hold fewer. Each entry:
+
+```
+**1. R40 — <title>**
+Context: <what the comment found, in the corpus's words>
+Question: <the choice>
+Proposed ruling: <the agreed ruling>
+Supersedes: <id> — <what it said>      (only when it replaces an automated ruling)
+```
+
+Length follows complexity: two or three lines for an easy question, more for a hard one, never
+the full write-up of an individual question. Close the batch with
+`Reply with the numbers that are wrong; the rest are accepted ("ok" accepts all).`
+
+Save the batch and the owner's exact reply in the worksheet. Numbers named as wrong go to the
+individual flow, where they are asked like any other question, with both answers. A number
+may also be given as the review reference (`R40`). A doubt about one proposal ("not sure about
+3") sends that proposal to the individual flow. A number or reference that names nothing in the
+batch, or "ok" next to a number without saying which way ("ok 2 4", "ok, 3"), makes the whole
+reply unclear; "ok except 2" or "ok but 2 is wrong" is clear (2 wrong, the rest accepted): record nothing from it and show the same batch once more,
+saying which part did not match; a second unclear reply sends all of its proposals to the
+individual flow. Never guess. Every other proposal is accepted: the bulk accept
+is the owner's approval of the ruling and of applying it (step 7). Record each accepted proposal
+in batch order through `just decisions add-decision --automated`, with `--supersedes <id>` when
+the entry showed one. Immediately before each write, check for a duplicate and against the
+rulings recorded so far in this pass: a proposal that now contradicts one of them goes to the
+individual flow instead of superseding it. Read back `just decisions show <id>`, confirm
+`**Automated.** true`, and mark the worksheet entry `bulk-accepted`. The tool refuses
+`--automated` with a human, legacy or section target, or an automated target a human ruling has
+already superseded, and writes nothing; such a proposal goes to
+the individual flow. Uncertain writes are reconciled before retrying. After each batch, report
+the ids recorded. Show the next batch when five more are ready.
+
+The owner can correct an automated ruling through a later successor, never an edit or silent
+relabeling. Individual answers use ordinary recording (`Automated: false`) and may supersede
+anything.
+
+**Summary after the last batch.** When every wave has finished and the last batch is answered,
+list the automated rulings of the pass, important ones first (scope, architecture,
+security/trust, compatibility, manual user work), each with id, reference and one-line decision;
+keep it in the worksheet.
+
+**Individual questions after the summary.** Then the individual questions follow: the
+disagreements, the human conflicts (naming the human ruling, quoting it and explaining why the
+agreed answer would contradict it), the proposals rejected or unclear in a batch, and the failed
+pairs, all in one consequence order with confirmations first.
 
 **Current question and upcoming preview.** Use the next two unanswered prepared questions
-from the worksheet, confirmations first and then the ask questions of step 4, each presented
-through its try-answer reduction: the strikeable `I would record` lines, then only the open choice. Start each with
+from the worksheet's individual items, confirmations first. Explain the material disagreement,
+conflict or missing evidence, both answers where relevant, and your recommendation. Proposed
+additions remain proposals; never present either answer as an approved partial ruling. Start each with
 `Question n of N` and the count remaining after it; label the second exactly
 `Upcoming (Don't answer yet)`. Keep the same number while discussing a question, update
 N when questions are added, merged or dropped, and never show only `Question n`.
@@ -246,8 +319,11 @@ Promote the preview to current and show the next unanswered preview.
 
 ### 6. Verify
 
-Confirm every definite answer has been recorded and no write failure is unresolved before
-verification, application or closing. Supply pending uncertainties from the worksheet as
+Confirm every definite answer and every bulk-accepted proposal has been recorded and no write
+failure is unresolved before verification, application or closing. For automated rulings also
+confirm both independent answer artifacts, the comparison and current-history check, the batch
+and reply that accepted them, and structured provenance.
+Supply pending uncertainties from the worksheet as
 `<pending uncertainties>` below; an answered question can still have an unresolved part.
 
 Dispatch one verify-review agent: the every-prompt block of `agent-prompts.md` section 1
@@ -262,13 +338,20 @@ entry listing every unit marked `dismissed` and every unit on the dropped list w
 Wait; a missing output is redispatched once.
 
 Read `<RUN>/verify-<nn>.md`. Material units marked `not answered` become the next prepared
-question pass through step 5, with updated counts and the current/upcoming display. The owner rules, and the ruling is recorded as in step 5; or
+question pass through step 4's independent-answer sequence, then step 5's batches and
+individual questions. The owner rules on remaining disagreements, recorded as in step 5; or
 the owner dismisses the unit, and its entry under `## Questions` in the worksheet is marked
 `dismissed`, with file and heading and a one-line gist, for the declared-minor entry of step 9.
 Dispatch verify-review again, with the next `nn`, until every unit is `answered by`; a unit
 covered by the draft declared-minor entry counts as answered.
 
 ### 7. Apply
+
+Check application authority before dispatching any protected-document edit, including carry
+steps here and in step 8. A bulk accept in step 5 and an individual answer are the owner's
+explicit approval of the nature of the change: apply those rulings with no further prompt. An
+`Automated: true` ruling recorded any other way is not applied without the owner's approval;
+summarize the proposed change and ask.
 
 The log, with the recorded entries waiting to be applied, and the iteration files of this cycle are uncommitted
 through this step; `/apply-decision`'s gate allows exactly those two to be dirty and stops on anything else. Nothing
@@ -328,7 +411,7 @@ Show the owner the status line and its recommendation, then ask one question:
 `Needs a ruling` count. The owner may also name a finding of another bucket to move into the
 open ones (`triage.md` section 1); do so before acting on the choice.
 
-- Rule: steps 5 to 7 on the open findings, in the iteration file's order, references as
+- Rule: step 4's independent-answer sequence, then steps 5 to 7 on the open findings, in the iteration file's order, references as
   `NN.n` (`01.3`). In step 5's `add-decision`, `--answers` is `NN.n` and `--source` is the
   iteration file's docs-relative path with the finding's heading text,
   `--source "reviews/iterations/<YYYY-MM-DD>-<slug>-iteration-NN.md#<n>. <title>"` (the file
@@ -379,7 +462,7 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git add docs/decision-log.
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>" -- docs/decision-log.md docs/reviews/iterations/<YYYY-MM-DD>-<slug>-iteration-*.md $(cat "$ROOT/.cache/reconcile-links/changed.txt" 2>/dev/null) && git show --stat --format= HEAD)
 ```
 
-Then `rm -rf <RUN>`. Report the section number and the commit. Finished.
+Then `rm -rf <RUN> <RUN>-hidden`. Report the section number, the commit and the summary of step 5. Finished.
 
 ## Without an argument
 
@@ -424,17 +507,13 @@ After the last file, say that the list is done and stop.
 
 ## Never
 
-- Never read the decision log or a corpus document in this session, and never edit a corpus
-  document in it; agents read them, `/apply-decision`
-  (step 7) edits for a new ruling, carry-document agents (steps 7 and 8) for a settled-but-lagging
-  comment. `just decisions` and the open-section check at steps 5 and 9 print the section's own
-  lines, and
-  `show <id>` one earlier ruling for a carry prompt, nothing more; `/apply-decision` at step 7
-  reads what its own skill says.
+- Never edit a corpus document in the orchestrator; use authorized application or carry steps.
+- Never expose the first answer, conversation history or other answer artifacts to the independent
+  agent, or present a revised first answer as independent after reading the second.
 - Never present both displayed questions as active, or treat a preview as an answer or approval.
-- Never record an answer of medium or low confidence, or one that contradicts a ruling,
-  without the owner; never supersede one of the owner's own rulings on a try-answer agent's word.
-  Label the preview exactly `Upcoming (Don't answer yet)`; only the current question asks for an answer.
+- Never record a ruling the owner has not seen in a batch or answered individually; never put
+  a disagreement or a conflict with a human ruling into a batch; never let an automated ruling
+  supersede anything but an automated ruling. Label the preview exactly `Upcoming (Don't answer yet)`; only the current question asks for an answer.
 - Never delegate answer recording, fabricate missing policy, or treat an unverified write as recorded.
 - Never paste an answer as a ruling; interpret and clean it up.
 - Never commit outside step 1 (the review file), steps 7 and 8 (one commit per ruling by
@@ -448,5 +527,5 @@ After the last file, say that the list is done and stop.
   in `docs/reviews/iterations/`, and the listing of the no-argument mode.
 - Never pass a `model` parameter, and never use a `subagent_type` other than
   `general-purpose`.
-- Never delete, move or trash a file; the run directory under `/tmp` at step 10 is the one
-  exception.
+- Never delete, move or trash a file; the run directory and its `-hidden` folder under `/tmp`
+  at step 10 are the one exception.

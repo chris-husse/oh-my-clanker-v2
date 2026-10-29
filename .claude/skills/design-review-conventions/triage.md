@@ -7,9 +7,14 @@ happens if nothing is done?
 
 - **Needs a ruling.** Two documents can both be read as correct and they disagree, or a
   document relies on something no other document and no ruling defines. Two documents that
-  disagree with the log silent are in this bucket. Only this bucket reaches the owner.
+  disagree with the log silent are in this bucket. These need decisions.
 - **Already ruled, not carried.** A ruling, including one made earlier in this cycle, settles
-  it and a document still lags. Carried without asking, listed.
+  it and a document still lags. Carry and list it when the ruling is a human ruling, or an
+  automated ruling the owner bulk-accepted (the accept is the approval to apply). An automated
+  ruling recorded any other way stays pending: report the proposed change for approval; never
+  route it around the application gate through a carry agent. An automated ruling settles a
+  finding like any other ruling; a later answer that would change it is a supersession
+  proposal, or an individual question when it touches a human ruling.
 - **Dropped.** Taste, or a repeat: a finding whose documents already match a ruling or a
   declared-minor entry. Listed with a one-line reason. Also dropped: every finding that fails the
   materiality test below, with the reason "not material".
@@ -22,7 +27,7 @@ design; rare edge cases whose sensible answer is obvious; definitions nobody wou
 differently; anything a reasonable builder would simply get right. Apply it before bucketing; when
 in doubt, drop.
 
-One finding may split: its settled part is carried and its open part asked. The review file
+One finding may split: its settled part is carried when authorized and its open part asked. The review file
 shows it once with both marks. The owner may move any finding into the first bucket at a
 status line.
 

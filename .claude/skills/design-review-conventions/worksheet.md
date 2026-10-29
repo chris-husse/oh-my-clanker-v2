@@ -21,10 +21,15 @@ sections:
 - `## Units`: the units of the review file, in file order, each with its reference.
 - `## Questions`: one entry per finding or merged question, whatever its bucket, with the
   comment references it merges, its bucket in each iteration, its class (confirmation, real
-  question) and for a real question its try-answer confidence and route (auto or ask), its question number/order and total, current/upcoming role, exact presented
-  question and owner answer (or `auto-decided` for an auto one), pending uncertainties,
-  confirmed ruling id, and the commit that applied it.
-- `## Status lines`: every status line shown, in order.
+  question), both independent answer paths, independence (the first answer saved before its wave
+  was dispatched; `discarded` pairs), evidence version, comparison of choice/scope/conditions,
+  current-history conflict check (naming any conflicting human ruling), confidence, the
+  automated ruling it would supersede, route (`proposed` or `individual`), the batch and number
+  it was shown as with the owner's exact reply (`bulk-accepted` or moved to individual), or its
+  question number/order and total, current/upcoming role, exact presented question and owner
+  answer, pending uncertainties, confirmed ruling id and Automated field, and the commit that
+  applied it.
+- `## Status lines`: every status line shown, in order, and the ids recorded after each batch.
 - `## Rulings as written`: each ruling as entered in the decision log.
 
 A run that has nothing for a section leaves it empty.
@@ -43,8 +48,11 @@ Agent outputs sit beside the worksheet, one file per agent:
 - `carry-<doc>.md`: carry-document, the same `doc`; used by `/review-design` for
   settled-but-lagging comments; new rulings of a review are applied by `/apply-decision`, which
   writes no such file.
-- `answer-<ref>.md`: try-answer (`.claude/skills/try-answer-design-question/SKILL.md`), one per real
-  question; `ref` is the question's first reference.
+- `orchestrator-<ref>.md`: the orchestrator's hidden answer, saved before its wave is dispatched,
+  in `<run>-hidden/` beside the run directory, never named in a prompt; `-r2` and later
+  suffixes for re-answered pairs, also on `answer-<ref>.md`.
+- `answer-<ref>.md`: the fresh try-answer agent's independent answer, one per unresolved prepared
+  question; `ref` is the question's first reference. The agent may not read other run files.
 - `verify-<nn>.md`: verify-review; `nn` is the two-digit count of verify passes in the cycle,
   from `01`.
 
@@ -63,3 +71,11 @@ refill from the existing question list. Displaying a question never answers it.
 On resume, use the worksheet and reconcile any uncertain write against the section through
 `just decisions list/show` before retrying, so a successful write is not duplicated. Never
 advance verification, application or closing past an unresolved recording failure.
+
+Batches of proposed rulings come before the individual questions: save each batch as shown and
+the owner's exact reply, then record the accepted proposals and their readback before showing the
+next batch. Preserve both independent answers and their comparison before proposing anything. If
+the first answer or independence evidence is missing, do not reconstruct it after reading the
+second or claim agreement; answer the question again from scratch. After the last batch, the
+summary lists the automated rulings of the pass with the important ones first (scope,
+architecture, security/trust, compatibility, manual user work).

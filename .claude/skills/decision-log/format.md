@@ -29,6 +29,7 @@ Review file (open): docs/reviews/<file>.md
 
 **Context.** <the problem and the question, cleaned up; a link for every reference>
 **Decision.** <what now holds; a link for every reference>
+**Automated.** true | false
 **Affected.** [<text>](<link>), [<text>](<link>)
 **Supersedes.** [N.j](#N.j%20<title>), [§M](#M.%20<title>%20(<date>))
 **Source.** [<item heading>](reviews/<file>.md#<item%20heading>)
@@ -48,6 +49,19 @@ Fields stand in this order, one line each; a field with nothing in it is not wri
 - **Supersedes** holds pointers to earlier rulings the decision may have changed, nearly always in part: an entry
   `N.k` or a section of the log `§N`. They are leads for reading, not verdicts (`/how-we-got-here` reads both
   rulings and says what changed). It is the only field that may link a log section.
+  An automated decision may supersede only automated decisions that no non-automated entry has
+  superseded; never a human or legacy decision or a log section. Callers must also check semantic
+  conflicts: omitting a pointer does not make a contradiction acceptable. Human successors may
+  supersede anything while preserving the old ruling's provenance.
+- **Automated** is provenance, separate from Status: exactly `true` for a proposed ruling the
+  owner bulk-accepted (both independent answers agreed), `false` for a human-recorded ruling. New decisions always carry it;
+  `add-decision --automated` writes true and ordinary recording writes false. It is immutable,
+  including on recorded entries, and application preserves it. Notes never carry it. Older entries
+  without the field remain valid and are displayed as `unspecified`; do not rewrite them or treat
+  absence as proof of human authorship. A legacy automatic-attribution sentence is evidence of
+  automation; read the source before attributing other legacy decisions to the owner.
+  When a committed baseline is available, integrity checking requires provenance on decisions
+  added since that baseline. With no baseline, missing fields cannot be distinguished from legacy.
 - **Source** links the item the decision came from: the heading of an item in a review file, never the file alone.
   Optional.
 - **Status** has exactly four forms:
@@ -69,6 +83,8 @@ own section `N`. `N.k` is the one id shape `docs/LINKS.md` knows as a ruling, `�
 
 - Append-only: the tool appends sections and entries; it changes an existing entry only to apply it (Affected and
   Status) and a section only to close it. An applied entry's or a note's link-free text never changes again.
+- A bulk-accepted automated ruling is recorded and applied on the owner's bulk accept, but it is
+  never a human ruling: it carries less weight and never overrules a human or legacy ruling.
 - Every field value is one line. Free text (a title, Context, Decision, a note's text, a description) must not start
   like a line of the log's structure: a heading, a fence, a bold `**Label.**`, `Review file`, `Iterations:` or
   `Answers:`.
@@ -104,18 +120,21 @@ exists for migrations only; no skill passes it.
 | Subcommand | Does |
 |---|---|
 | `show <id>…` | prints the entries in full |
-| `list [--section N]` | one line per entry: `N.k  <status>  <title>` |
+| `list [--section N]` | one line per decision: `N.k  <status>  Automated: true\|false\|unspecified  <title>`; notes omit provenance |
 | `search [--affected <path-prefix>[#heading]] [--source <path-prefix>[#heading]] [--supersedes <id>] [--status recorded\|applied\|note] [--section N] [--since YYYY-MM-DD] [--text <regex>] [--oneline\|--ids]` | the entries matching every given filter, in file order, in full unless `--oneline` or `--ids`. `--affected` and `--source` match a link target by docs-relative path prefix (`design/02`), or exactly with `#heading`; a prefix nothing in the folder starts with is an error. `--supersedes` takes `N.k` or `§N`. `--since` compares the recorded date (a note: its section's date). `--text` is a regex over the link-free text |
 | `history <path[#heading]>` | every entry whose Affected or Supersedes links hit that target (a file names every heading in it; an entry id `N.k` also names the entry itself; `§N` a log section), oldest first, each followed by `later: <ids>` when later entries name it in `Supersedes`, and those later entries themselves, through any chain |
 | `check` | the integrity check below; prints its problems, then `<n> problems`, and exits 1; prints `OK` when the log is sound |
 | `new-section --title t [--description d] [--review-file docs/reviews/<file>.md]` | opens section N+1 and prints `N+1`; the review file is repository-relative and must exist |
-| `add-decision --title t --context c --decision d [--affected link…] [--supersedes id…] [--source link] [--answers ids]` | appends an entry to the open section, status `recorded <today>`, and prints its id |
+| `add-decision --title t --context c --decision d [--automated] [--affected link…] [--supersedes id…] [--source link] [--answers ids]` | appends an entry to the open section, status `recorded <today>`, and prints its id; with `--automated`, every `--supersedes` target must be an automated decision no non-automated entry supersedes |
 | `add-note --title t --text t` | appends a note to the open section and prints its id |
 | `apply-decision --id N.k (--affected link… \| --no-change)` | only on a recorded decision: replaces Affected with the set given and sets `applied <today>`; `--no-change` drops Affected and writes `applied <today>, nothing to change` |
 | `close-section --section N --iterations n` | closes (or recloses) a review section as above; only `/review-design` uses it |
 | `body <id>` | the entry's link-free text without its heading line: the body of a commit message |
 
 `--affected` and `--supersedes` take several values (`--affected a b`, or the flag repeated).
+`search --automated true|false|unspecified` combines with other filters and matches only decisions
+with that provenance. `unspecified` means the field is absent, not human or automated; notes are
+excluded. Without the filter, search behavior is unchanged.
 
 ## `check`
 
@@ -128,9 +147,9 @@ Prints `PROBLEM: <file>:<line>: <kind>: <detail>` lines, one per problem. The ki
 | `out-of-order` | ids do not ascend |
 | `wrong-section` | an entry `N.k` sits under a section other than `N` |
 | `malformed-status` | a `Status` line is missing or not one of the four forms |
-| `malformed-entry` | a decision lacks Context or Decision, a note carries a field, or an entry has an unknown bold field |
+| `malformed-entry` | a decision lacks Context or Decision, a note carries a field, an entry has an unknown bold field, Automated is invalid or repeated, or an automated ruling supersedes a non-automated entry or a log section |
 | `dead-link` | a link of a recorded entry, or of an entry new since `HEAD`, does not resolve (no such file or heading, leaves the folder, a note, a log section outside `Supersedes`) |
 | `removed` | an entry applied or a note in `HEAD` is gone from the working tree |
-| `edited` | an entry applied or a note in `HEAD` has a different link-free text in the working tree |
+| `edited` | an entry applied or a note in `HEAD` has a different link-free text in the working tree, or any existing entry's Automated provenance differs from `HEAD` |
 
 `just decisions check` runs in `just build`.

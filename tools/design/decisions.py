@@ -221,7 +221,7 @@ def _date(log: Log, e: Entry) -> str | None:
     return m.group(0) if m else None
 
 
-def search(folder, log, affected=None, source=None, supersedes=None, status=None, section=None, since=None, text=None) -> list[Entry]:
+def search(folder, log, affected=None, source=None, supersedes=None, status=None, section=None, since=None, text=None, automated=None) -> list[Entry]:
     """The entries matching every given filter, in file order. --affected and --source match a link target by path
     prefix, or exactly with '#heading'; a reference that matches nothing in the folder raises RefError."""
     out = list(log.entries.values())
@@ -234,6 +234,11 @@ def search(folder, log, affected=None, source=None, supersedes=None, status=None
         out = [e for e in out if want in e.targets('Supersedes')]
     if status is not None:
         out = [e for e in out if e.status() == status]
+    if automated is not None:
+        if automated not in ('true', 'false', 'unspecified'):
+            raise RefError('automated must be true, false or unspecified')
+        out = [e for e in out if e.kind() == 'decision'
+               and e.fields.get('Automated', 'unspecified') == automated]
     if section is not None:
         out = [e for e in out if e.section == int(section)]
     if since is not None:
@@ -248,6 +253,26 @@ def direct_later(log: Log, e: Entry) -> list[str]:
     """Ids of the later entries whose Supersedes names e itself, in file order."""
     target = _entry_target(e)
     return [o.id for o in log.entries.values() if o.line > e.line and target in o.targets('Supersedes')]
+
+
+def _automated_supersedable(log: Log, entry_id: str, before: int | None = None) -> str | None:
+    """None when an automated ruling may supersede entry_id: an automated decision that no non-automated entry
+    (above line `before`, when given) supersedes, directly or through a chain; otherwise the reason. Legacy entries
+    count as human."""
+    e = log.entries.get(entry_id)
+    if e is None:
+        return None  # an unknown id is the link check's to refuse
+    if e.kind() != 'decision':
+        return 'is not a decision'
+    provenance = e.fields.get('Automated', 'unspecified')
+    if provenance == 'unspecified':
+        return 'is a legacy ruling (Automated unspecified), treated as human'
+    if provenance != 'true':
+        return 'is a human ruling'
+    if any(log.entries[i].fields.get('Automated') != 'true' and (before is None or log.entries[i].line < before)
+           for i in later_chain(log, e)):
+        return 'is superseded by a human ruling'
+    return None
 
 
 def later_chain(log: Log, e: Entry) -> list[str]:
@@ -276,7 +301,8 @@ def history(folder, log, ref: str) -> list[tuple[Entry, list[str]]]:
 
 
 def format_oneline(e: Entry) -> str:
-    return f'{e.id}  {e.fields.get("Status") or "(no status)"}  {e.title}'
+    provenance = f'  Automated: {e.fields.get("Automated", "unspecified")}' if e.kind() == 'decision' else ''
+    return f'{e.id}  {e.fields.get("Status") or "(no status)"}{provenance}  {e.title}'
 
 
 def format_history(folder, log, ref: str) -> str:
@@ -331,6 +357,18 @@ def check(folder, log, head_text: str | None) -> list[str]:
                        if (m := BOLD_LABEL_RE.match(line)) and m.group(1) not in FIELDS]
             if unknown:
                 add(e.line, 'malformed-entry', f'{e.id} has the unknown field {", ".join(unknown)}')
+            if len(e.automated_values) > 1 or any(v not in ('true', 'false') for v in e.automated_values):
+                add(e.line, 'malformed-entry', f'{e.id}: Automated must occur once with true or false when present')
+            if head is not None and e.id not in head.entries and e.kind() == 'decision' and not e.automated_values:
+                add(e.line, 'malformed-entry', f'{e.id}: new decisions require Automated provenance')
+            if e.fields.get('Automated') == 'true':
+                by_target = {_entry_target(o): o for o in log.entries.values()}
+                for t in e.targets('Supersedes'):
+                    o = by_target.get(t)
+                    why = _automated_supersedable(log, o.id, e.line) if o is not None else 'is a log section'
+                    if why:
+                        add(e.line, 'malformed-entry', f'{e.id}: automated decisions supersede only automated rulings: '
+                            f'{o.id if o is not None else t.heading} {why}')
             if status == 'recorded' or (head is not None and e.id not in head.entries):
                 # recorded, or new since HEAD: every link must stand; the links of applied entries and notes are the
                 # link checker's business (they age as the documents move on)
@@ -339,9 +377,12 @@ def check(folder, log, head_text: str | None) -> list[str]:
                     add(e.line + text.count('\n', 0, link.start), 'dead-link', f'{e.id}: {text[link.start:link.end]} ({why})')
     if head is not None:
         for hid, he in head.entries.items():
+            cur = log.entries.get(hid)
+            if cur is not None and cur.fields.get('Automated') != he.fields.get('Automated'):
+                add(cur.line, 'edited', f'{hid}: Automated provenance changed from HEAD')
+                continue
             if he.status() not in ('applied', 'note'):
                 continue
-            cur = log.entries.get(hid)
             if cur is None:
                 add(0, 'removed', f'{hid} is in HEAD but not in the working tree')
             elif cur.link_free() != he.link_free():
@@ -420,14 +461,24 @@ def _next_id(log: Log) -> str:
     return f'{s.n}.{max((e.number for e in s.entries), default=0) + 1}'
 
 
-def add_decision(folder, log, title, context, decision, affected=(), supersedes=(), source=None, answers=None, today=None) -> str:
+def add_decision(folder, log, title, context, decision, affected=(), supersedes=(), source=None, answers=None, today=None, automated=False) -> str:
     """Appends a recorded decision to the open section and returns its id."""
+    if type(automated) is not bool:
+        raise RefError('automated must be a boolean')
+    if automated:
+        for a in supersedes or ():
+            if LOG_SECTION_ID_RE.match(a.strip()):
+                raise RefError(f'automated decisions cannot supersede a log section; obtain a human decision: {a}')
+            why = _automated_supersedable(log, a.strip()) if RULING_ID_RE.match(a.strip()) else None
+            if why:
+                raise RefError(f'automated decisions supersede only automated rulings: {a.strip()} {why}')
     title, context, decision = _free(title, 'title'), _free(context, 'context'), _free(decision, 'decision')
     _check_text_links(folder, log, context, 'context')
     _check_text_links(folder, log, decision, 'decision')
     fields = {
         'Context': context,
         'Decision': decision,
+        'Automated': 'true' if automated else 'false',
         'Affected': _links(folder, log, affected),
         'Supersedes': _supersedes_links(folder, log, supersedes),
         'Source': _source_link(folder, log, source) if source is not None else '',
@@ -548,6 +599,7 @@ def main(argv=None) -> int:
     p = sub.add_parser('list', help='every entry, one line each')
     p.add_argument('--section', type=int)
     p = sub.add_parser('search', help='entries matching every given filter')
+    p.add_argument('--automated', choices=['true', 'false', 'unspecified'], help='decision provenance; unspecified matches legacy entries without the field')
     for opt in ['--affected', '--source', '--supersedes', '--status', '--since', '--text']:
         p.add_argument(opt)
     p.add_argument('--section', type=int)
@@ -566,6 +618,7 @@ def main(argv=None) -> int:
     p.add_argument('--title', required=True)
     p.add_argument('--context', required=True)
     p.add_argument('--decision', required=True)
+    p.add_argument('--automated', action='store_true', help='record an owner-accepted proposed ruling; may supersede only automated rulings')
     p.add_argument('--affected', action='extend', nargs='+', default=[], metavar='LINK')
     p.add_argument('--supersedes', action='extend', nargs='+', default=[], metavar='ID')
     p.add_argument('--source', metavar='LINK')
@@ -604,7 +657,7 @@ def main(argv=None) -> int:
                     print(format_oneline(e))
         elif args.command == 'search':
             hits = search(folder, log, affected=args.affected, source=args.source, supersedes=args.supersedes, status=args.status,
-                          section=args.section, since=args.since, text=args.text)
+                          section=args.section, since=args.since, text=args.text, automated=args.automated)
             for e in hits:
                 print(e.id if args.ids else format_oneline(e) if args.oneline else e.text() + '\n')
         elif args.command == 'history':
@@ -619,7 +672,7 @@ def main(argv=None) -> int:
             print(new_section(folder, log, args.title, args.description, args.review_file, args.today))
         elif args.command == 'add-decision':
             print(add_decision(folder, log, args.title, args.context, args.decision, args.affected, args.supersedes,
-                               args.source, args.answers, args.today))
+                               args.source, args.answers, args.today, automated=args.automated))
         elif args.command == 'add-note':
             print(add_note(folder, log, args.title, args.text))
         elif args.command == 'apply-decision':

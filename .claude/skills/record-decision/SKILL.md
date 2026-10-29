@@ -1,6 +1,6 @@
 ---
 name: record-decision
-description: Record one decision of the owner in docs/decision-log.md through the decision tool - make it well formed (title, context, decision, a link for every reference), find the design sections it affects and the rulings it supersedes, show the prepared `just decisions add-decision` call, run it on the owner's word. Edits no document; /apply-decision does that.
+description: "Record one decision of the owner in docs/decision-log.md through the decision tool - make it well formed (title, context, decision, a link for every reference), find the design sections it affects and the rulings it supersedes, show the prepared `just decisions add-decision` call, run it on the owner's word. Edits no document; /apply-decision does that."
 disable-model-invocation: true
 ---
 
@@ -42,6 +42,11 @@ Argument: the decision in the owner's words, with whatever context they gave. Th
    `(cd "$ROOT" && just decisions show <id> && just links-check)`.
 8. **Report** the id and the title, and say: `Next: /apply-decision <id>.` Commit nothing: the recorded entry is
    committed with its application.
+
+Ordinary recording writes `**Automated.** false`. Do not pass `--automated` for an owner's
+answer. Bulk-accepted proposed rulings are recorded by `/review-design`, which performs the
+both-answer and history checks; a prose attribution sentence is not provenance. An owner's
+ruling may supersede anything, automated rulings included.
 
 ## Never
 

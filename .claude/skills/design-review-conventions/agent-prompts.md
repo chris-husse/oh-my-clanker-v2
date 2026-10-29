@@ -1,10 +1,10 @@
 # Agent prompts
 
-Every agent of `/review-design` and `/validate-design` is dispatched with one of the four
-templates below. A prompt is the block of section 1, then one
+Cluster, validation, carry and verification agents use sections 1–6 below; the independent
+try-answer agent uses only section 7. A prompt for sections 3–6 is the block of section 1, then one
 template body, with every angle-bracket placeholder filled. Nothing else, except where a template says so. Agents do not
 see the session's skills, so a template carries everything its agent needs. The session reaches
-the decision log and the corpus only through agents; the templates are how.
+the relevant decision history and corpus directly when forming its own independent answers.
 
 ## 1. Every prompt
 
@@ -16,7 +16,7 @@ the names are in `worksheet.md`.
 You are a read-only agent on this repository's design folder, docs/ in the repository at <ROOT>.
 Do not create, delete, move or trash any file outside your assigned output path.
 Do not read: docs/reviews/ (except the file under review and its iterations), anything matching the exclude globs of tools/corpus.yaml (docs/superpowers/), or anything outside docs/.
-The decision log docs/decision-log.md is rulings. The latest ruling wins. Read it fully before you report anything.
+The decision log docs/decision-log.md is rulings. Read it fully before you report anything. Automated provenance is the Automated field (true or false); a missing field is legacy/unspecified, not evidence of human approval. An older automatic-attribution sentence indicates legacy automation. Automated rulings carry less weight than human ones: a human ruling (and a legacy one) is never overridden by an automated ruling, and an automated ruling may supersede only an automated ruling. Report conflicting rulings rather than silently preferring the latest automated entry. Recorded rulings override lagging corpus text.
 The corpus is every file matching the corpus globs of tools/corpus.yaml (`git ls-files -co --exclude-standard -- 'docs/design/*.md' 'docs/e2e-tests/*.md'`, untracked files included, Markdown only; it mirrors the globs `design/**/*.md` and `e2e-tests/**/*.md` of tools/corpus.yaml).
 You cannot ask the owner. Put every doubt in your output under a heading "Doubts".
 Write your output to <OUTPUT PATH> and reply with only the number of findings (or the number of passages touched).
@@ -26,8 +26,11 @@ Write your output to <OUTPUT PATH> and reply with only the number of findings (o
 
 - `subagent_type: general-purpose`. Never pass a `model` parameter; the agent inherits the
   session's model.
-- Dispatch all agents of one step in a single message.
-- Wait for every completion before reading any output.
+- Dispatch cluster, validation and carry agents of one step in a single message. Dispatch
+  independent-answer agents in waves of at most 20 in one message, one question each, only
+  after the orchestrator's own answers for that wave are saved.
+- Wait for every completion of a cluster, validation or carry step before reading its output.
+  Independent answers are read as each arrives (`review-design` step 4).
 - A missing output file means the agent failed (`findings-format.md`). Redispatch that agent
   once, with the same prompt.
 
@@ -85,7 +88,7 @@ Body:
 ```
 Your document is <document path>, a corpus document.
 It is checked against every other corpus document.
-Where a passage matches the latest ruling, that passage is correct and the other document is the finding.
+Where a passage matches the effective ruling after tracing human-directed successors, that passage is correct and the other document is the finding. A newer automated ruling that conflicts with a human decision is itself a finding, never authority to replace the human decision.
 Report only genuine conflicts, gaps and wording findings. Conflict: two passages disagree. Gap: a document relies on something no other document and no ruling defines. Wording: one thing under two names. Quote both passages where two exist. No proposals, no restyling, no praise. Report a finding only if it is an actual problem: a user would experience something wrong or contradictory (a flow that dead-ends, two documents prescribing different behaviour); data, security or rights could go wrong; or a builder would have to guess between two behaviours that both look intended. Never report: wording, unless two names would show the user an actual inconsistency; technical internals the design leaves to the technical design; rare edge cases whose sensible answer is obvious; definitions nobody would act on differently; anything a reasonable builder would simply get right. When in doubt, leave it out.
 When a ruling of the decision log settles the finding and a document lags behind it, name that ruling's number in **Why it matters** (for example: settled by 3.7; 02-repos-and-config.md §2.6 lags). When a `Declared minor` entry of the log covers the finding, name it the same way (for example: declared minor in 4.6).
 Number findings from 1, one block per finding, in this form:
@@ -167,4 +170,25 @@ For each unit of the file, in file order, write one list item: the unit's refere
 Check uncertainties against existing material. Only materially new unresolved choices belong
 in the next question pass; ordinary implementation details and correctness requirements do not.
 The number of findings in your reply is the number of units marked not answered.
+```
+
+## 7. Independent answer
+
+One fresh agent per question, at most 20 per wave, without inherited conversation (for example, `fork_context: false`
+when supported). Do not prepend section 1: its full-history requirement breaks the try-answer
+skill's optional blind mode, and its file restrictions exclude the instructions this agent needs.
+Do not reuse an agent or attach a worksheet, first answer, cluster recommendation or comparison.
+Supply only the original question, quoted source passages, source references and explicit human
+constraints; no proposed resolution. The standalone skill also supports historical blind tests.
+
+```
+You are answering one design review question independently in <ROOT>.
+Read and follow .claude/skills/try-answer-design-question/SKILL.md.
+Write only <OUTPUT PATH>; do not edit the log, corpus, skills or other artifacts.
+Do not read other files in the run directory, orchestrator answers, worksheets,
+cluster outputs, other agent answers, comparisons or conversation history.
+Consult the question's sources and effective decision history yourself.
+Report any exposed candidate answer instead of claiming independence.
+Question and source evidence:
+<neutral question and evidence>
 ```
