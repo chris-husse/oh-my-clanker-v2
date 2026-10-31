@@ -667,3 +667,45 @@ def test_new_decision_cannot_omit_provenance_when_baseline_is_known(repo, docs):
     problems = check(load(docs)[0], parse_log(text), head_log_text(docs))
     assert any(': malformed-entry: 1.4' in p and 'Automated' in p for p in problems)
     assert check(*load(docs), head_log_text(docs)) == []  # existing legacy entries remain valid
+
+
+def test_set_provenance_relabels_an_uncommitted_decision(repo, docs):
+    eid = add_decision(*load(docs), 'Ack', 'c', 'd')
+    set_provenance(*load(docs), eid, True, head_log_text(docs))
+    assert load(docs)[1].entries[eid].fields['Automated'] == 'true'
+    assert check(*load(docs), head_log_text(docs)) == []
+
+
+def test_set_provenance_refuses_a_committed_entry(repo, docs):
+    eid = add_decision(*load(docs), 'Ack', 'c', 'd')
+    commit_all(repo, 'ruling')
+    before = log_text(docs)
+    with pytest.raises(RefError, match='committed'):
+        set_provenance(*load(docs), eid, True, head_log_text(docs))
+    assert log_text(docs) == before
+
+
+def test_set_provenance_refuses_notes_legacy_and_no_change(repo, docs):
+    eid = add_decision(*load(docs), 'Ack', 'c', 'd', automated=True)
+    before = log_text(docs)
+    for target, value in (('1.3', True), (eid, True)):
+        with pytest.raises(RefError):
+            set_provenance(*load(docs), target, value, head_log_text(docs))
+    assert log_text(docs) == before
+
+
+def test_set_provenance_to_automated_respects_supersession(repo, docs):
+    human = add_decision(*load(docs), 'H', 'c', 'd')
+    eid = add_decision(*load(docs), 'X', 'c', 'd2', supersedes=[human])
+    before = log_text(docs)
+    with pytest.raises(RefError, match='[Aa]utomated'):
+        set_provenance(*load(docs), eid, True, head_log_text(docs))
+    assert log_text(docs) == before
+
+
+def test_set_provenance_cli(repo, docs, capsys):
+    base = ['--docs', str(docs)]
+    assert main(base + ['add-decision', '--title', 'Ack', '--context', 'c', '--decision', 'd']) == 0
+    eid = capsys.readouterr().out.strip()
+    assert main(base + ['set-provenance', eid, '--automated', 'true']) == 0
+    assert load(docs)[1].entries[eid].fields['Automated'] == 'true'

@@ -250,8 +250,12 @@ the individual flow. Uncertain writes are reconciled before retrying. After each
 the ids recorded. Show the next batch when five more are ready.
 
 The owner can correct an automated ruling through a later successor, never an edit or silent
-relabeling. Individual answers use ordinary recording (`Automated: false`) and may supersede
-anything.
+relabeling. Provenance follows what the owner contributed, in a batch reply or an individual
+answer alike. A reply that only accepts or picks a presented option ("ok", "yes", "(a)") is an
+acknowledgement: record it with `--automated`. A reply that states, changes or reasons the
+decision in the owner's own words is a human ruling: record it the ordinary way
+(`Automated: false`); it may supersede anything. When an acknowledged option would have to
+supersede a human ruling, the tool refuses it; ask the owner for their own wording instead.
 
 **Summary after the last batch.** When every wave has finished and the last batch is answered,
 list the automated rulings of the pass, important ones first (scope, architecture,

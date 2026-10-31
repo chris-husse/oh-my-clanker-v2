@@ -43,13 +43,14 @@ Rules:
 - Every review file ends with a section, including files the owner
   closes without ruling.
 - Renaming a decided review file is the owner's job and includes amending the line.
-- Rulings are either human answers interpreted and cleaned up, or proposed rulings the owner
-  bulk-accepted: the substantive agreement of the orchestrator's hidden answer and a fresh
+- Rulings are either human answers interpreted and cleaned up, or rulings the owner only
+  acknowledged: a proposal bulk-accepted from a batch, or an individual question answered by
+  picking the presented option ("ok", "yes", "(a)"). A proposal is the substantive agreement of the orchestrator's hidden answer and a fresh
   independent try-answer agent, with no conflict against a human ruling. Use the corpus's own words and a link for every reference
   (`docs/LINKS.md`). The orchestrator records through `just decisions`: `--automated` writes
   `**Automated.** true`; ordinary human recording writes false. Never put attribution into the
   Decision text or relabel old entries. Unresolved ambiguities stay in the worksheet, not policy.
-- Bulk-accepted rulings carry less weight than human ones: they may supersede only automated
+- Acknowledged rulings (`Automated: true`) carry less weight than human ones: they may supersede only automated
   rulings, never a human or legacy one. The bulk accept is the owner's approval to apply them.
 - The `Answers:` line names the finding numbers a ruling answers. Iteration findings are named
   by iteration and number, as `01.3`. Comments in a free-form file are named by a short quoted

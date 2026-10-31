@@ -53,8 +53,9 @@ Fields stand in this order, one line each; a field with nothing in it is not wri
   superseded; never a human or legacy decision or a log section. Callers must also check semantic
   conflicts: omitting a pointer does not make a contradiction acceptable. Human successors may
   supersede anything while preserving the old ruling's provenance.
-- **Automated** is provenance, separate from Status: exactly `true` for a proposed ruling the
-  owner bulk-accepted (both independent answers agreed), `false` for a human-recorded ruling. New decisions always carry it;
+- **Automated** is provenance, separate from Status: exactly `true` for a ruling the owner only
+  acknowledged (a bulk-accepted proposal, or a presented option picked with "ok"), `false` for a
+  ruling the owner stated, changed or reasoned in their own words. New decisions always carry it;
   `add-decision --automated` writes true and ordinary recording writes false. It is immutable,
   including on recorded entries, and application preserves it. Notes never carry it. Older entries
   without the field remain valid and are displayed as `unspecified`; do not rewrite them or treat
@@ -127,6 +128,7 @@ exists for migrations only; no skill passes it.
 | `new-section --title t [--description d] [--review-file docs/reviews/<file>.md]` | opens section N+1 and prints `N+1`; the review file is repository-relative and must exist |
 | `add-decision --title t --context c --decision d [--automated] [--affected link…] [--supersedes id…] [--source link] [--answers ids]` | appends an entry to the open section, status `recorded <today>`, and prints its id; with `--automated`, every `--supersedes` target must be an automated decision no non-automated entry supersedes |
 | `add-note --title t --text t` | appends a note to the open section and prints its id |
+| `set-provenance <id> --automated true\|false` | corrects the Automated field of a recorded decision that is not yet committed; refuses a committed entry, a note, an unchanged value, or `true` on an entry that supersedes a non-automated ruling |
 | `apply-decision --id N.k (--affected link… \| --no-change)` | only on a recorded decision: replaces Affected with the set given and sets `applied <today>`; `--no-change` drops Affected and writes `applied <today>, nothing to change` |
 | `close-section --section N --iterations n` | closes (or recloses) a review section as above; only `/review-design` uses it |
 | `body <id>` | the entry's link-free text without its heading line: the body of a commit message |

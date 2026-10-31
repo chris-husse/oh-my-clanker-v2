@@ -531,6 +531,31 @@ def apply_decision(folder, log, entry_id, affected=None, no_change=False, today=
     _write(folder, log, log.lines[:e.line - 1] + lines + log.lines[e.end:])
 
 
+def set_provenance(folder, log, entry_id, automated, head_text) -> None:
+    """Corrects the Automated field of a decision not yet committed; a committed entry's provenance never changes.
+    An entry turned automated must supersede only automated rulings."""
+    if type(automated) is not bool:
+        raise RefError('automated must be a boolean')
+    e = _the_entry(log, entry_id)
+    if e.kind() != 'decision' or e.status() != 'recorded':
+        raise RefError(f'{entry_id} is {e.status()}; only a recorded decision has provenance to correct')
+    if head_text is not None and entry_id in parse_log(head_text).entries:
+        raise RefError(f'{entry_id} is committed; its provenance never changes')
+    value = 'true' if automated else 'false'
+    if e.fields.get('Automated') == value:
+        raise RefError(f'{entry_id} is already Automated: {value}')
+    if automated:
+        by_target = {_entry_target(o): o for o in log.entries.values()}
+        for t in e.targets('Supersedes'):
+            o = by_target.get(t)
+            why = _automated_supersedable(log, o.id, e.line) if o is not None else 'is a log section'
+            if why:
+                raise RefError(f'automated decisions supersede only automated rulings: {o.id if o else t.heading} {why}')
+    lines = [f'**Automated.** {value}' if (m := FIELD_RE.match(line)) and m.group(1) == 'Automated' else line
+             for line in e.lines]
+    _write(folder, log, log.lines[:e.line - 1] + lines + log.lines[e.end:])
+
+
 def close_section(folder, log, n, iterations, today=None) -> None:
     """Closes or recloses a review section: `Review file (open):` becomes `Review file:`, `Iterations:` is written,
     and the heading's dates read `(<first>, refined <today>)`."""
@@ -637,6 +662,9 @@ def main(argv=None) -> int:
     p.add_argument('--section', type=int, required=True)
     p.add_argument('--iterations', type=int, required=True)
     today_option(p)
+    p = sub.add_parser('set-provenance', help='correct the Automated field of a decision not yet committed')
+    p.add_argument('id')
+    p.add_argument('--automated', choices=['true', 'false'], required=True)
     p = sub.add_parser('body', help='an entry\'s link-free text without its heading, for a commit message')
     p.add_argument('id')
     args = parser.parse_args(argv)
@@ -677,6 +705,9 @@ def main(argv=None) -> int:
             print(add_note(folder, log, args.title, args.text))
         elif args.command == 'apply-decision':
             apply_decision(folder, log, args.id, args.affected, args.no_change, args.today)
+            print(args.id)
+        elif args.command == 'set-provenance':
+            set_provenance(folder, log, args.id, args.automated == 'true', head_log_text(docs))
             print(args.id)
         elif args.command == 'close-section':
             close_section(folder, log, args.section, args.iterations, args.today)
