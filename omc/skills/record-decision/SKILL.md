@@ -10,9 +10,10 @@ has ruled, in whatever flow the ruling came up. A question answered during a bra
 implementation task, an audit, a review, or an answer to a question file's question that affects a rule or the design is
 a decision the moment it is answered. Its callers: `/pose-questions` after each answer, `/answer-doubt` for a page that
 lags a rule and, from `/design` on, for the agreement of its two answers (both `Automated` entries) and for a pick acted
-on although its two answers disagreed (`Automated: disagreed`), the screenshot review of `/audit`'s `screens` for a ruling of a round, and any flow
-where the owner rules in passing, a remark in a conversation included. Recording is not a step the owner authorizes, so
-it needs no lifecycle word; inside `/design`, `/implement` or `/audit` it is part of that skill's work.
+on although its two answers disagreed (`Automated: disagreed`), the screenshot review of `/audit`'s `screens` for a
+ruling of a round, and any flow where the owner rules in passing, a remark in a conversation included. Recording is not
+a step the owner authorizes, so it needs no lifecycle word; inside `/design`, `/implement` or `/audit` it is part of
+that skill's work.
 
 It writes one entry into the log (`paths.decision_log` of `omc/config.yaml`) through the decision tool; the entry, the
 names `Affected` takes and the question file are in `omc/tools/decisions/FORMAT.md`; read it first. It edits no
@@ -149,8 +150,8 @@ and check that `Context` and `Decision` say what the owner said. A wrong entry n
 `just decisions update <n>`; a committed one is not edited: record a new one that replaces it (step 1).
 
 **`--defer`**: run with it when the owner deferred this ruling in the same answer that gave it (a ruling made after
-`/design`, which they chose to leave for a later branch: `omc/tools/decisions/FORMAT.md` › "The entry"). The entry is recorded as
-above, then deferred, recorded on the base branch unapplied for a later branch:
+`/design`, which they chose to leave for a later branch: `omc/tools/decisions/FORMAT.md` › "The entry"). The entry is
+recorded as above, then deferred, recorded on the base branch unapplied for a later branch:
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions defer --id <n> && just decisions show <n>)

@@ -19,9 +19,10 @@ One JSON list; each item has `source`, `path`, `title`, `theme` (or null) and `s
 ## 2. Deduplicate
 
 One gap in two sources is one item, both sources named: a brief and an open question about the same matter, a `TODO`
-comment and an open test of the project's for the same behaviour. Read the sources of a doubtful pair before merging them;
-two items that merely share a theme stay two. The merged item keeps one `start` command, the one of the source that
-holds the most, in the order `just omc todos` gives the sources (tasks, deferred, question, the project's own, todo).
+comment and an open test of the project's for the same behaviour. Read the sources of a doubtful pair before merging
+them; two items that merely share a theme stay two. The merged item keeps one `start` command, the one of the source
+that holds the most, in the order `just omc todos` gives the sources (tasks, deferred, question, the project's own,
+todo).
 
 ## 3. The list
 

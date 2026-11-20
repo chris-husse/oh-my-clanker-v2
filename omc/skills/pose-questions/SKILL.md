@@ -247,13 +247,12 @@ number. A gap the owner leaves open is named at the run's end.
 
 ## 8. Apply or defer
 
-After design, a ruling may be **deferred**: recorded on the base branch (`base` of `omc/config.yaml`) unapplied, for a later branch (`omc/tools/decisions/FORMAT.md` ›
-"The entry"). When every
-item is answered, this message follows, run from `/audit` (its `push` item after the screenshot review, through
-`/review-decisions`) or by hand after design (a plan is committed on the branch: `just omc plan` exits 0). Never in
-the brainstorm or `/design` (its `integrity`): design-stage rulings are applied, and the step is skipped; nor when
-the screenshot review of `/audit`'s `screens` names its round's question file, whose own apply-or-defer message lists these rulings with the rest
-of the round.
+After design, a ruling may be **deferred**: recorded on the base branch (`base` of `omc/config.yaml`) unapplied, for a
+later branch (`omc/tools/decisions/FORMAT.md` › "The entry"). When every item is answered, this message follows, run
+from `/audit` (its `push` item after the screenshot review, through `/review-decisions`) or by hand after design (a plan
+is committed on the branch: `just omc plan` exits 0). Never in the brainstorm or `/design` (its `integrity`):
+design-stage rulings are applied, and the step is skipped; nor when the screenshot review of `/audit`'s `screens` names
+its round's question file, whose own apply-or-defer message lists these rulings with the rest of the round.
 
 One message lists every entry this run recorded (`/record-decision` in step 7, its gaps' follow-ups included), each
 with its title, the pages it reaches and the session's suggestion: **apply** (the branch's gist needs it) or **defer**

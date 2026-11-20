@@ -20,9 +20,10 @@ reading (`omc/terminals/impact`); from a red `design-integrity-check` in `/audit
 nothing outside `paths.specs`, `paths.plans`, the log and `paths.questions`): there nothing builds or tests, and the
 plan, not this skill, applies the record's entries. A run the owner asks for, typed or handed over on their word, is
 theirs, whenever they ask. "Run from `/implement` or `/audit`" means any of those callers but the owner's own
-`/review-decisions` (and `/review-design`'s or the project's screenshot review's hand-over on their word): the caller says so when it
-sends work here, and a run the owner typed, or handed over on their word, is run by hand. Run from `/implement` or
-`/audit` it is part of that skill's work: its authorization covers it, and its next step comes after this report.
+`/review-decisions` (and `/review-design`'s or the project's screenshot review's hand-over on their word): the caller
+says so when it sends work here, and a run the owner typed, or handed over on their word, is run by hand. Run from
+`/implement` or `/audit` it is part of that skill's work: its authorization covers it, and its next step comes after
+this report.
 
 **Deferred or whole.** Run from `/implement` (its step `decisions`) or from `/audit` before the item after the owner's
 screenshot review (`rebase` item 5, `review` item 4, ▣ verify's `integrity` outcome, `screens`), the run is
@@ -45,10 +46,9 @@ written only through `just decisions`; its subcommands are `add-decision`, `appl
 `update`, `remove`, `confirm`, `overrule`, `show`, `list`, `pending`, `guard`, `trim`, `resolve`, `renumber` and
 `check`, no other; this skill runs `trim`, `check`, `pending`, `list`, `show` and `guard` itself, `renumber` only as
 `omc/terminals/rebase` › "4. The log after the rebase" runs it, `confirm`, `overrule` and `defer` only through
-`/pose-questions` (`defer` also through `/record-decision --defer` and the screenshot review of `/audit`'s `screens`, on the owner's
-word),
-`undefer` never, and the others only through `/record-decision` and `/apply-decision`. A commit stages its paths by
-name, never `git add -A` or `git add .`, and its message ends with
+`/pose-questions` (`defer` also through `/record-decision --defer` and the screenshot review of `/audit`'s `screens`, on
+the owner's word), `undefer` never, and the others only through `/record-decision` and `/apply-decision`. A commit
+stages its paths by name, never `git add -A` or `git add .`, and its message ends with
 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One build, test or render at a time among this run's own
 agents and commands; never wait for another worktree's or session's run (their load is reported, not waited out):
 never a run of this run's beside another, and never a command of yours while an agent of yours builds.
@@ -176,10 +176,10 @@ The run goes on with the rest, never comes back to this step for it, and step 5 
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions list)
 ```
 
-Each line is `n  status  Automated: <value>  title`. The entries whose status is `recorded`, in id order, are the
-total. An entry whose status is `deferred` is skipped: the owner deferred it to `<base>`, for a later branch (`omc/tools/decisions/FORMAT.md` ›
-"The entry"); it
-backs no page, `pending` does not name it, and the report names it (step 5). Each recorded entry gets one fresh
+Each line is `n  status  Automated: <value>  title`. The entries whose status is `recorded`, in id order, are the total.
+An entry whose status is `deferred` is skipped: the owner deferred it to `<base>`, for a later branch
+(`omc/tools/decisions/FORMAT.md` › "The entry"); it backs no page, `pending` does not name it, and the report names it
+(step 5). Each recorded entry gets one fresh
 agent, `subagent_type: general-purpose`, one at a time: start the next only when the previous one has returned and its
 commit is checked. Its prompt is exactly the brief below, `<n>` the entry's id and
 `<worktree root>` the absolute path `git rev-parse --show-toplevel` printed:

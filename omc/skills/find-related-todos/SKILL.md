@@ -17,8 +17,9 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc todos --json)
 ```
 
 One JSON list; each item has `source` (`tasks`, `deferred`, `question`, `todo`, and the sources of the project's own
-`omc/bin/todos`), `path`, `title`, `theme` (where one can be read, else null) and `start` (the command that starts it). The brief is a
-path (read from the root) or text. When the primer has read the brief's subthemes and pages, they come with it.
+`omc/bin/todos`), `path`, `title`, `theme` (where one can be read, else null) and `start` (the command that starts it).
+The brief is a path (read from the root) or text. When the primer has read the brief's subthemes and pages, they come
+with it.
 
 ## 2. The pick
 

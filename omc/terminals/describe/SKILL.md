@@ -46,11 +46,11 @@ The real change, not only the messages:
 
 - `git log -1 --format=%B`: the squashed commit's message (the messages of the work, the trailers).
 - The changed shots and their verdicts: the branch's yaml, the path `just omc shots path` prints
-  (`<paths.questions>shots/<slug>.yaml`, `<slug>` the branch without `branch_prefix` of `omc/config.yaml`), which ▣ screens-assess wrote and the owner's review completed: per shot its id, its `bucket`
-  (`unexpected`, `expected`), `verdict`, `reason`, `cause` and the owner's `review`; and whether every current row is
-  accepted, `just omc shots accepted`. No yaml: no shot differs from the base, and the description says nothing of
-  shots. The files of the review's rounds (`<paths.questions>screens/<date>-<slug>-<n>.md`) name the owner's
-  comments.
+  (`<paths.questions>shots/<slug>.yaml`, `<slug>` the branch without `branch_prefix` of `omc/config.yaml`), which
+  ▣ screens-assess wrote and the owner's review completed: per shot its id, its `bucket` (`unexpected`, `expected`),
+  `verdict`, `reason`, `cause` and the owner's `review`; and whether every current row is accepted, `just omc shots
+  accepted`. No yaml: no shot differs from the base, and the description says nothing of shots. The files of the
+  review's rounds (`<paths.questions>screens/<date>-<slug>-<n>.md`) name the owner's comments.
 - `git diff --stat $(git merge-base HEAD origin/<base>) HEAD` for its shape, then the diff itself for whatever the
   messages do not explain.
 - The record given (`just omc record` lists the branch's records): its title, its "Context and goal", its decisions.
