@@ -48,11 +48,15 @@ GATE_NOTES = ('omc/bin/*.md',)  # the gates' notes
 
 
 def gate_keep(paths):
-    return (paths.briefs, paths.plans), paths.screenshots + paths.baselines + GATE_NOTES
+    """The shots' verdicts and the owner's screenshot reviews (`Paths.verdicts`, `Paths.screen_reviews`) hold the
+    review and the passed gate, so that `/audit`'s `screens` step amends them into the commit over both; the shots
+    themselves are `paths.screenshots`, which the review holds too."""
+    return ((paths.briefs, paths.plans, paths.verdicts, paths.screen_reviews),
+            paths.screenshots + paths.baselines + GATE_NOTES)
 
 
 def review_keep(paths):
-    return (paths.briefs,), paths.baselines
+    return (paths.briefs, paths.verdicts, paths.screen_reviews), paths.screenshots + paths.baselines
 
 
 def settled_keep(paths):

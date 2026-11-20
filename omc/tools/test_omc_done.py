@@ -31,6 +31,8 @@ from omc_fixtures import TOOL, Repo  # noqa: E402
 CODE = 'src/a.txt'
 SHOT = 'docs/screens/shots/en/x.png'
 BASELINE = 'test/e2e/baseline/x.json'
+YAML = 'docs/reviews/shots/x.yaml'
+FEEDBACK = 'docs/reviews/screens/2026-11-20-x-1.md'
 
 
 def short(repo, ref='HEAD'):
@@ -415,13 +417,23 @@ class DoneTest(unittest.TestCase):
         self.repo.git('commit', '-q', '-m', 'one commit')
         self.passed()
 
-    def test_a_changed_shot_holds_for_a_gate_not_a_review(self):
+    def test_a_changed_shot_holds_for_a_gate_and_a_review(self):
         self.pass_here()
         self.ok('reviewed', '--record')
-        self.repo.commit(SHOT, 'png\n', 'judged shot')
+        self.repo.commit(SHOT, 'png\n', 'assessed shot')
         self.passed()
-        line = self.answer(1, 'reviewed')
-        self.assertTrue(line.startswith('not reviewed: ') and line.endswith(f'does not hold: {SHOT}'), line)
+        self.assertTrue(self.answer(0, 'reviewed').startswith('reviewed at '))
+
+    def test_yaml_and_feedback_keep_review_and_gate(self):
+        self.pass_here()
+        self.ok('reviewed', '--record')
+        self.repo.commit(YAML, 'shots: {}\n', 'the verdicts')
+        self.repo.write(FEEDBACK, '# feedback\n')  # uncommitted, as the next step amends it
+        self.passed()
+        self.assertTrue(self.answer(0, 'reviewed').startswith('reviewed at '))
+        self.repo.write('docs/reviews/2026-11-20-x-screens-1.md', '# Questions: x\n')  # a question file is not kept
+        self.not_passed()
+        self.answer(1, 'reviewed')
 
     def test_a_baseline_advance_holds_for_both(self):
         self.pass_here()
@@ -513,11 +525,12 @@ class DoneTest(unittest.TestCase):
         self.assertEqual(self.answer(0, 'reviewed'), f'reviewed at {sha[:8]}')
 
     def test_review_record_refuses_uncovered_changes(self):
-        self.repo.write(SHOT, 'png\n')
-        self.assertIn(SHOT, self.assertRefused('reviewed', '--record'))
+        self.repo.write(CODE, 'changed\n')
+        self.assertIn(CODE, self.assertRefused('reviewed', '--record'))
         self.assertFalse(os.path.exists(os.path.join(self.repo.work, '.cache', 'omc', 'reviewed')))
-        os.remove(os.path.join(self.repo.work, SHOT))
+        self.repo.git('checkout', '-q', '--', CODE)
         self.repo.write(BASELINE, '{}\n')
+        self.repo.write(SHOT, 'png\n')
         self.ok('reviewed', '--record')
 
     def test_settled_holds_until_anything_but_tasks_and_plans_changes(self):
@@ -610,7 +623,8 @@ class ComparisonTest(unittest.TestCase):
     def test_holds_names_the_paths_its_list_does_not_keep(self):
         paths = config.load(self.repo.work).paths
         self.assertEqual(done.holds(self.repo.work, self.old, done.gate_keep(paths)), (True, []))
-        self.assertEqual(done.holds(self.repo.work, self.old, done.review_keep(paths)), (False, [SHOT]))
+        self.assertEqual(done.holds(self.repo.work, self.old, done.review_keep(paths)), (True, []))
+        self.assertEqual(done.holds(self.repo.work, self.old, done.settled_keep(paths)), (False, [SHOT]))
         self.assertEqual(done.holds(self.repo.work, 'deadbeef', done.gate_keep(paths)),
                          (False, ['the commit is gone']))
 

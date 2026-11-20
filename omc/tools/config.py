@@ -19,7 +19,8 @@ import yaml
 VERBS = {'enter': (), 'record': (), 'plan': (), 'git': ('rebased-on', 'one-commit', 'clean'), 'rebase': (),
          'impact': (), 'gate': ('run', 'passed', 'skip'), 'reviewed': (), 'settled': (), 'models': (), 'handoff': (),
          'lint': (), 'gitnexus': ('install', 'refresh', 'query', 'context', 'impact', 'cypher'),
-         'title': ('set', 'release', 'apply'), 'shell-integration': ('fish',), 'pass': ('harden', 'consistency')}
+         'title': ('set', 'release', 'apply'), 'shell-integration': ('fish',), 'pass': ('harden', 'consistency'),
+         'shots': ('pairs', 'accepted'), 'todos': ()}
 # The four skills of omc/pipeline/, the words `just omc enter` takes
 PIPELINE = ('brainstorm', 'design', 'implement', 'audit')
 # The three gate terminals of omc/terminals/ that are also skills, /check, /build, /verify
@@ -55,6 +56,17 @@ class Paths:
     themes: tuple[str, ...] = ()  # the theme files (rule ids)
     product: tuple[str, ...] = ()  # what the project ships: a branch changing none of it is gated by build (`Gate:`)
     links: tuple[str, ...] | None = None  # the files links-check reads (links_scope); absent: the protected ones
+    todos: tuple[str, ...] | None = None  # the files whose TODO/FIXME comments are open work; absent: product
+
+    @property
+    def verdicts(self):
+        """The folder of the shots' verdicts, one `<slug>.yaml` per branch (▣ screens-assess): `<questions>shots/`."""
+        return f'{self.questions}shots/'
+
+    @property
+    def screen_reviews(self):
+        """The folder of the owner's screenshot reviews, one file per round: `<questions>screens/`."""
+        return f'{self.questions}screens/'
 
 
 FOLDERS = ('briefs', 'specs', 'plans', 'questions')  # the `Paths` strings that name a folder

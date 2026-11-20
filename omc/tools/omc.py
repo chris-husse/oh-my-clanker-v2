@@ -22,6 +22,8 @@ import lint  # noqa: E402
 import passes  # noqa: E402
 import rebase  # noqa: E402
 import repo  # noqa: E402
+import shots  # noqa: E402
+import todos  # noqa: E402
 
 MARKER = os.path.join('.cache', 'omc', 'current')
 RESUME = ('you are in /{skill} (omc/pipeline/{skill}/SKILL.md): read it again and start it at its first step; the '
@@ -241,6 +243,33 @@ def gitnexus_verb(args):
     return 0
 
 
+def shots_verb(args):
+    """`shots pairs [--base B]`: the pairs as JSON, exit 0; `shots accepted [--base B]`: `accepted` 0, or
+    `not accepted: <ids>` 1. B defaults to the merge-base with origin/<base>; the yaml is the branch's."""
+    root = repo.root()
+    base = args.base or repo.merge_base(root)
+    path = shots.yaml_path(root)
+    if args.ask == 'pairs':
+        print(json.dumps(shots.pairs(root, base, path)))
+        return 0
+    return answer(*shots.accepted(root, base, path))
+
+
+def todos_verb(args):
+    """`todos`: one line per item, `<source>\t<theme or ->\t<title>\t<path>\t<start>`; `--json` the list; exit 1
+    with none."""
+    found = todos.gather(repo.root())
+    if not found:
+        print('no open work found')
+        return 1
+    if args.json:
+        print(json.dumps(found))
+    else:
+        for i in found:
+            print('\t'.join((i['source'], i['theme'] or '-', i['title'], i['path'], i['start'])))
+    return 0
+
+
 def ported(args):
     """`title` and `shell-integration`, the ported helpers of omc 0.1.54 (title.py, fish_integration.py): they read no
     configuration and keep omc's own lines and codes, an expected failure `error: <why>` on stderr with its code (1, or
@@ -355,6 +384,19 @@ def parser():
                 a.add_argument('subject', metavar=subject)
                 a.add_argument('rest', nargs=argparse.REMAINDER, help="GitNexus's own options, passed through")
                 a.set_defaults(handler=gitnexus_verb)
+        elif verb == 'shots':
+            s = verbs.add_parser('shots', help="the changed shots' (paths.screenshots) (base, current) LFS pairs "
+                                               'with the rows of <paths.questions>shots/<slug>.yaml that hold, as '
+                                               "JSON; accepted: every pair's row `review: accepted`")
+            s.add_argument('ask', choices=config.VERBS['shots'])
+            s.add_argument('--base', metavar='B', help='the commit to compare with (default: the merge-base with '
+                                                       'origin/<base>)')
+            s.set_defaults(handler=shots_verb)
+        elif verb == 'todos':
+            s = verbs.add_parser('todos', help='the known open work, each item with its source, title, theme and '
+                                               'the `just design` that starts it')
+            s.add_argument('--json', action='store_true', help='the items as one JSON list')
+            s.set_defaults(handler=todos_verb)
         elif verb == 'title':
             s = verbs.add_parser('title', help="pin or release this iTerm2 tab's title (quiet; the fish hook's helper)")
             sub = s.add_subparsers(dest='title_command', required=True, metavar='action', parser_class=Parser)
