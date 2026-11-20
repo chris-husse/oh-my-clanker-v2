@@ -145,6 +145,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual((cfg.paths.protected, cfg.paths.specs, cfg.paths.plans),
                          (('docs/design/**/*.md',), 'design/', 'docs/superpowers/plans/'))
 
+    def test_paths_product(self):
+        self.assertEqual(config.Paths().product, ())  # absent: the plan's own reading of `Gate: build`
+        cfg = self.load_text(GOOD + 'paths:\n  product: ["src/app/**", "src/packages/**"]\n')
+        self.assertEqual(cfg.paths.product, ('src/app/**', 'src/packages/**'))
+        self.assertRefused(GOOD + 'paths:\n  product: src/app\n', 'paths.product')
+
     def test_paths_reject_non_list(self):
         self.assertRefused(GOOD + 'paths:\n  protected: docs/x\n', 'paths.protected')
         self.assertRefused(GOOD + 'paths:\n  themes: [1]\n', 'paths.themes')

@@ -112,6 +112,17 @@ def read(path):
         raise Refused(f'cannot read {path}: {e.strerror}') from None
 
 
+def product_gate(root, task):
+    """[task] (repo.next_task) with its gate `build` made `check` when `paths.product` lists globs and a path changed
+    since the merge-base (committed, in the tree or untracked: done.changed_paths) matches one, the first of them
+    under `product`; else [task] as it is (no `paths.product`: the plan's `Gate:` line stands)."""
+    globs = config.load(root).paths.product
+    if task['gate'] != 'build' or not globs:
+        return task
+    hits = [p for p in done.changed_paths(root, repo.merge_base(root)) or () if config.matches(p, globs)]
+    return {**task, 'gate': 'check', 'product': hits[:done.SHOWN]} if hits else task
+
+
 def plan(args):
     root = repo.root()
     if not args.next and args.tick is None:
@@ -124,7 +135,7 @@ def plan(args):
         if task is None:
             print(f'every task of {path} is ticked')
             return 1
-        print(json.dumps(task))
+        print(json.dumps(product_gate(root, task)))
         return 0
     try:
         ticked, count = repo.tick(text, args.tick)
@@ -273,7 +284,9 @@ def parser():
         elif verb == 'plan':
             s = verbs.add_parser('plan', help='the plan the branch added and committed since the merge-base')
             which = s.add_mutually_exclusive_group()
-            which.add_argument('--next', action='store_true', help="the first task with a `- [ ]`, as JSON")
+            which.add_argument('--next', action='store_true', help="the first task with a `- [ ]`, as JSON; its gate the plan's "
+                               "`Gate:` line, `build` made `check` once the branch changes a path of "
+                               "paths.product (named under `product`)")
             which.add_argument('--tick', type=int, metavar='N', help="tick every `- [ ]` of task N; prints the count")
             s.set_defaults(handler=plan)
         elif verb == 'git':

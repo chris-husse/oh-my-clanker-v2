@@ -4,7 +4,8 @@ orchestrator's model, the hand-off flag `ask_for_provider_handoff` (absent: fals
 the `gitnexus` pin, the fork's origin and full commit sha, the gates' `concurrency` (runs of a gate at once on the
 machine, absent: 1) and `silence` (seconds without output before a gate run is killed, absent: none), and
 `paths`, every path of the project the tools read (`Paths`; absent: the defaults, every glob list empty; `links`,
-the files links-check reads, absent: the protected ones).
+the files links-check reads, absent: the protected ones; `product`, what the project ships, absent: a plan's
+`Gate: build` is the plan writer's reading alone).
 Read with `yaml.safe_load`, so through the justfile's `uv run --frozen python -I` (pyyaml is pinned); the names every
 verb of `just omc` and `just design` share live here: `VERBS`, `PIPELINE`, `GATES`, `ROLES`."""
 import glob
@@ -52,6 +53,7 @@ class Paths:
     decision_log: str = 'docs/decision-log.md'
     questions: str = 'docs/reviews/'
     themes: tuple[str, ...] = ()  # the theme files (rule ids)
+    product: tuple[str, ...] = ()  # what the project ships: a branch changing none of it is gated by build (`Gate:`)
     links: tuple[str, ...] | None = None  # the files links-check reads (links_scope); absent: the protected ones
 
 

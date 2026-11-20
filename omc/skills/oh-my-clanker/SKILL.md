@@ -164,6 +164,11 @@ Only these keys change; every other key and comment stays as shipped:
 - `paths.screenshots` and `paths.baselines`: the globs of the committed screenshots and golden files `read` found;
   empty when there are none.
 - `paths.themes`: empty, unless the owner uses theme files with rule ids (ask only when `read` found such files).
+- `paths.product`: the globs of what the project ships (its app, its packages, its server), as `read` found them;
+  a plan whose branch changes none of them is gated by the build gate and the omc tool tests after each task
+  (`Gate: build`), its check gate run once at the end. Put to the owner with the files each glob matches now; the
+  options: those globs, or empty (the default where the check gate tests only the product: the plan writer then gives
+  `Gate: build` only to a branch that changes nothing the check gate tests).
 - `paths.briefs`, `paths.specs`, `paths.plans`, `paths.decision_log`, `paths.questions`: as shipped, unless the
   repository already keeps briefs, specs, plans or decision records in another folder; then ask, the shipped path and
   theirs as the options.

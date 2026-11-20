@@ -28,3 +28,4 @@ paths:
   decision_log: docs/decision-log.md
   questions: docs/reviews/
   themes: []                    # globs of the theme files (rule ids)
+  product: []                   # globs of what the project ships (a branch changing none of it: `Gate: build`)

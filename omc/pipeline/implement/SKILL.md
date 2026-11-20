@@ -135,7 +135,8 @@ One task at a time, in the plan's order, each through to its tick before the nex
    again. Then `--next`. Exit 0:
    `{"task": <n>, "title": "<…>", "complexity": "simple|medium|high", "gate": "build|check"}`, the task to build (of
    `<k>`, the plan's `### Task` headings), and `<gate>`, the plan's `Gate:` header line (`Gate: build` or `Gate: check`;
-   no line: `check`), which items 3 and 6 read. Exit 1: every task is ticked, on to `decisions`. Exit 2 (two plans on
+   no line: `check`; `build` made `check`, with the key `product` naming the paths, once the branch changes a path of
+   `paths.product`), which items 3 and 6 read. Exit 1: every task is ticked, on to `decisions`. Exit 2 (two plans on
    the branch, no plan, or a plan with no `### Task <n>:` heading): stop, to the owner, with the error; nothing goes on
    until they rule.
 2. **Who builds it.** A task whose section has a line beginning `Conducted by the main session` (bold or not) is
@@ -222,8 +223,8 @@ One task at a time, in the plan's order, each through to its tick before the nex
    - `failed` for any other reason: to the owner, with its reason, who says whether it runs again.
 6. **The gate.** First the clean tree ("Before every ▣ check", above). Then, by `<gate>`:
 
-   **`build`** (a plan that changes nothing of what the project's check gate tests): ▣ build, role `orchestrator`, then
-   the omc tool tests:
+   **`build`** (a plan that changes nothing of the project's product, `paths.product`, or without it nothing of what
+   the project's check gate tests): ▣ build, role `orchestrator`, then the omc tool tests:
 
    ```text
    commits: new
