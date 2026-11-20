@@ -23,6 +23,12 @@ committed by the orchestrator. It runs no build, no test and no gate; its only `
 `just decisions list`, `just decisions show` and the read verbs of `just omc gitnexus` (`query`, `context`, `impact`,
 `cypher`, through `/explain`), never `install` or `refresh`.
 
+**The tree it starts on is the run's.** The record may be uncommitted (an earlier pass's edits), and so may the log
+(`paths.decision_log`): the orchestrator's step `fresh` trims it of `<base>`'s entries (`just decisions trim`) and
+commits that trim later, so a log that differs from `HEAD` by entries marked applied and removed is the run's own
+trim. Neither is someone else's change: the report never names them as such, and never as outside this terminal's
+remit.
+
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`; a value a
 command printed (`<start hash>`) is written out in the next one.
 `<base>` is `base` of `omc/config.yaml`, the base branch (`main` as shipped), read from the file and written out
