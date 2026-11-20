@@ -24,7 +24,11 @@ Then the launch as omc's: on macOS the fish title hook's conf.d copy is reconcil
 labelled `<slug>` first, `herdr.name_tab`, a failure a `[warn]`), its herdr exit report
 the origin, which runs `claude -n <slug> [--model <orchestrator-model>] '/brainstorm .cache/omc/brief.md'`, under
 `direnv exec .` when `direnv version` runs. A first argument `--origin=<dir>` (the `design` recipe's
-`invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's. The standard library and pyyaml (config.py), through the justfile's
+`invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's.
+`--deferred <ids>` (a later branch picking up rulings left deferred on the base, `just omc todos`) takes the
+brief from the deferred entries of `origin/<base>`'s log (`# Deferred rulings <ids>`, then each entry's title, Context
+and Decision; an id unknown there or not deferred is refused before the lock), its slug asked of `claude -p` as for
+free text; then the start goes on as with a brief. The standard library and pyyaml (config.py), through the justfile's
 `uv run`; exit 2 with `error: <why>` on every refusal."""
 import fcntl
 import json
@@ -59,6 +63,7 @@ PROVIDER = 'claude'
 TITLE_OFF = {'CLAUDE_CODE_DISABLE_TERMINAL_TITLE': '1'}  # omc's claude provider's `title_env`
 KEBAB = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 SLUG_FORM = re.compile(r'^[a-z0-9]+(-[a-z0-9]+){2,5}$')  # three to six words
+DEFERRED_IDS = re.compile(r'^\d+(,\d+)*$')
 NOTHING = 'nothing to start: `just design <brief-or-text>`, a brief ({briefs}<name>.md) or a sentence'
 PROMPT = ('Reply with only a git branch slug for this piece of work: kebab-case, three to six lowercase ASCII words or '
           'numbers, nothing else. The work: {text}')
@@ -96,14 +101,53 @@ def slug_of(args, ask, briefs=config.Paths().briefs):
     text = ' '.join(args).strip()
     if not text:
         raise Refused('nothing to start: the text is empty')
+    return ask_slug(text, ask), text + '\n'
+
+
+def ask_slug(text, ask):
+    """The slug [ask] (a callable of the prompt) gives for [text], asked once more when its form is wrong, then
+    refused."""
     answers = []
     for _ in range(2):
-        answer = ask(PROMPT.format(text=text)).strip()
+        answer = ask(PROMPT.format(text=text.strip())).strip()
         if SLUG_FORM.match(answer):
-            return answer, text + '\n'
+            return answer
         answers.append(answer)
     raise Refused('claude gave no slug of three to six kebab-case words, twice: '
                   + ', '.join(repr(a) for a in answers))
+
+
+def deferred_ids(args):
+    """The ids of `--deferred <ids>` or `--deferred=<ids>` (comma-separated numbers, nothing after them), or None
+    when [args] does not start with `--deferred`."""
+    if not args or not (args[0] == '--deferred' or args[0].startswith('--deferred=')):
+        return None
+    words = [args[0][len('--deferred='):]] + args[1:] if args[0] != '--deferred' else args[1:]
+    if len(words) != 1 or not DEFERRED_IDS.match(words[0]):
+        raise Refused('--deferred takes one list of entry ids, comma-separated (`just design --deferred 42,57`)')
+    return [int(n) for n in words[0].split(',')]
+
+
+def deferred_brief(primary, base, ids, log_path):
+    """The brief of the deferred entries [ids] of `origin/<base>`'s log, [log_path] (`paths.decision_log`):
+    `# Deferred rulings <ids>`, then per entry `## <n>. <title>` and its Context and Decision. Refused when main's
+    log is not there, or an id names no entry of it or one that is not deferred (recorded, or applied)."""
+    sys.path.append(os.path.join(HERE, 'decisions'))  # decisions
+    import decisions
+    r = repo.git(primary, 'show', f'origin/{base}:{log_path}')
+    if r.returncode != 0:
+        raise Refused(f'origin/{base} holds no {log_path}: {repo.why(r)}')
+    log = decisions.parse_log(r.stdout)
+    parts = [f'# Deferred rulings {", ".join(str(n) for n in ids)}']
+    for n in ids:
+        e = log.entries.get(n)
+        if e is None:
+            raise Refused(f'decision {n} is not in the log of origin/{base}')
+        if e.status != decisions.Status.DEFERRED:
+            raise Refused(f'decision {n} is not deferred on origin/{base}: {e.fields.get("Status", "no status")}')
+        parts.append(f'## {n}. {e.title}\n\n**Context.** {e.fields.get("Context", "")}\n'
+                     f'**Decision.** {e.fields.get("Decision", "")}')
+    return '\n\n'.join(parts) + '\n'
 
 
 def say(text, end='\n'):
@@ -330,8 +374,12 @@ def main(argv=None):
         primary = gitnexus.primary_root('.')
         with step(f'primary: on {cfg.base}, clean, not diverged', quick=True):
             check_primary(primary, cfg.base)
+        ids = deferred_ids(args)
+        if ids is not None:
+            with step(f'deferred: decisions {", ".join(str(n) for n in ids)} of origin/{cfg.base}', quick=True):
+                text = deferred_brief(primary, cfg.base, ids, cfg.paths.decision_log)
         with step('slug', quick=True) as s:
-            slug, text = slug_of(args, ask_claude, cfg.paths.briefs)
+            slug, text = (ask_slug(text, ask_claude), text) if ids is not None else slug_of(args, ask_claude, cfg.paths.briefs)
             s.what = f'slug: {slug}'
         branch = cfg.branch_prefix + slug
         if sys.platform == 'darwin':

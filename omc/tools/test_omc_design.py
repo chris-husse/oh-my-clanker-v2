@@ -113,7 +113,8 @@ def write_exe(path, text):
     os.chmod(path, 0o755)
 
 
-class DesignTest(unittest.TestCase):
+class DesignCase(unittest.TestCase):
+    """The case's repository, fakes and helpers; the tests are DesignTest's and Deferred's."""
 
     def setUp(self):
         self.repo = Repo.make_repo()
@@ -217,6 +218,9 @@ class DesignTest(unittest.TestCase):
             seen += chunk
         return seen
 
+
+class DesignTest(DesignCase):
+
     # ------------------------------------------------------------------------------------------------------- the slug
     def test_a_brief_gives_its_name(self):
         brief = '# Location tracker device tests\n\nRun the tracker on a device.\n'
@@ -306,6 +310,8 @@ class DesignTest(unittest.TestCase):
         starts = ['→ primary:', '→ slug:', '→ lock:', '→ primary: pulling origin/main', '→ worktree:', '→ lock: released',
                   '→ GitNexus: checking the build', '→ GitNexus: refreshing the index',  # outside the start's lock
                   '→ notifications: .claude/settings.local.json', f'→ session: starting fish on claude "{SESSION}"']
+        if sys.platform == 'darwin':  # the fish title hook is reconciled on macOS only, after the slug
+            starts.insert(2, '→ fish title hook: reconciling')
         self.assertEqual(len(lines), len(starts), r.stderr)
         for line, start in zip(lines, starts):
             self.assertTrue(line.startswith(start), (start, r.stderr))
@@ -658,6 +664,86 @@ class DesignTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.repo.git('rev-parse', 'HEAD').strip(), head)
         self.assertEqual(self.started(), [self.repo.work, f'--origin={self.repo.work}', 'add a weekly payout report'])
+
+
+
+DEFERRED_LOG = """# Design decision log
+
+*Scratch space. Next: 58*
+
+### 41 Incidents need a photo
+
+**Context.** Incidents are reported without proof.
+**Decision.** Every incident carries a photo.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13
+
+### 42 The header shows the call
+
+**Context.** The owner asked.
+**Decision.** The call sits under the picture.
+**Automated.** false
+**Status.** recorded 2026-11-12
+
+### 43 Reports list the totals
+
+**Context.** The totals are hidden.
+**Decision.** A report lists its totals.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13
+
+### 57 Applied after its deferral
+
+**Context.** Old.
+**Decision.** Done.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13 · applied 2026-11-14
+"""
+DEFERRED_BRIEF = """# Deferred rulings 41, 43
+
+## 41. Incidents need a photo
+
+**Context.** Incidents are reported without proof.
+**Decision.** Every incident carries a photo.
+
+## 43. Reports list the totals
+
+**Context.** The totals are hidden.
+**Decision.** A report lists its totals.
+"""
+
+
+class Deferred(DesignCase):
+    """`just design --deferred <ids>`: the deferred entries of origin/main's log as the brief."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo.commit('docs/decision-log.md', DEFERRED_LOG, 'the log')  # the fixture's paths.decision_log
+        self.repo.git('push', '-q', 'origin', 'main')
+
+    def test_writes_brief_and_launches(self):
+        r = self.design('--deferred', '41,43', slugs='incident-photos-and-report-totals')
+        self.assertStarted(r, 'feature/incident-photos-and-report-totals', DEFERRED_BRIEF)
+        prompts = [json.loads(line) for line in self.read(self.prompts).splitlines()]
+        self.assertEqual(len(prompts), 1)
+        self.assertTrue(prompts[0].endswith('The work: ' + DEFERRED_BRIEF.strip()), prompts[0])
+        self.again()
+        r = self.design(f'--origin={self.repo.work}', '--deferred=43', slugs='payout-lists-its-fees')
+        self.assertStarted(r, 'feature/payout-lists-its-fees', DEFERRED_BRIEF.split('## 41')[0].replace('41, 43', '43')
+                           + '## 43' + DEFERRED_BRIEF.split('## 43')[1])
+
+    def test_refuses_unknown_or_not_deferred(self):
+        for args, why in ((('--deferred', '99'), 'decision 99 is not in'),
+                          (('--deferred', '41,42'), 'decision 42 is not deferred'),
+                          (('--deferred', '57'), 'decision 57 is not deferred'),
+                          (('--deferred', 'x'), '--deferred takes'),
+                          (('--deferred',), '--deferred takes'),
+                          (('--deferred', '41', 'more'), '--deferred takes')):
+            r = self.design(*args, slugs='never-asked-for-this')
+            self.assertRefused(r, why)
+        self.assertIsNone(self.read(self.prompts))
+        self.assertIsNone(self.read(self.wt_log))
+        self.assertIsNone(self.read(self.shell_log))
 
 
 if __name__ == '__main__':

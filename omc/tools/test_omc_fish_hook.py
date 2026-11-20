@@ -124,6 +124,15 @@ class HookShell:
         # restricted PATH that is "fish: Unknown command: mkdir" on stderr. Pre-create both.
         for base in ("cache", "data"):
             (tmp_path / base / "fish" / "generated_completions").mkdir(parents=True)
+        # fish 4.2 also runs a first-start setup while the universal `__fish_initialized` is
+        # below 3400: a bare `mkdir -p` and `fish_config theme save`, whose `grep.fish` runs `command grep` ("grep:
+        # command not found", and a distribution's command-not-found handler, on stderr). A fish already started
+        # once has it at 3800: seed it so.
+        (confd.parent / "fish_variables").write_text(
+            "# This file contains fish universal variable definitions.\n"
+            "# VERSION: 3.0\n"
+            "SETUVAR __fish_initialized:3800\n"
+        )
         # The same for the host's system config: NixOS's /etc/fish/config.fish runs `fenv`, whose bash ends in a bare
         # `env -0` ("env: command not found" on stderr). A silent `env` keeps it quiet and imports nothing, so the
         # PATH stays the stub dir; the hook never runs `env`.
@@ -140,6 +149,9 @@ class HookShell:
             OMC_TEST_LOG=str(self.log),
             ITERM_SESSION_ID=SESSION,
             TERM_PROGRAM="iTerm.app",
+            # fish 4.2's default key bindings ask `__fish_uname`, which runs a bare `uname` unless the variable is
+            # set ("uname: command not found" on stderr); the host's own answer, so the hook never needs `uname`.
+            __fish_uname=os.uname().sysname,
         )
 
     def run(self, script, *, env=None, cwd=None, timeout=25):
