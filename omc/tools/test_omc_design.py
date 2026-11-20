@@ -302,8 +302,8 @@ class DesignTest(unittest.TestCase):
         r = self.design('tasks/location-tracker-device-tests.md')
         self.assertStarted(r, 'feature/location-tracker-device-tests', 'the brief\n')
         lines = self.steps(r)
-        starts = ['→ primary:', '→ slug:', '→ lock:', '→ primary: pulling origin/main', '→ GitNexus: checking the build',
-                  '→ GitNexus: refreshing the index', '→ worktree:', '→ lock: released',
+        starts = ['→ primary:', '→ slug:', '→ lock:', '→ primary: pulling origin/main', '→ worktree:', '→ lock: released',
+                  '→ GitNexus: checking the build', '→ GitNexus: refreshing the index',  # outside the start's lock
                   '→ notifications: .claude/settings.local.json', f'→ session: starting fish on claude "{SESSION}"']
         self.assertEqual(len(lines), len(starts), r.stderr)
         for line, start in zip(lines, starts):
@@ -322,6 +322,19 @@ class DesignTest(unittest.TestCase):
         self.assertRegex(lines[at], r' \[failed\] \S', r.stderr)
         self.assertEqual(lines[at + 1], 'GitNexus is stale: /explain answers from no index', r.stderr)
         self.assertFalse(any(line.startswith('→ GitNexus: refreshing') for line in lines), r.stderr)
+
+    def test_a_refresh_under_way_in_another_start_is_left_to_it(self):
+        gitnexus_lock = os.path.join(self.repo.work, '.cache', 'omc', 'gitnexus.lock')
+        os.makedirs(os.path.dirname(gitnexus_lock), exist_ok=True)
+        with open(gitnexus_lock, 'a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            r = self.design('add a weekly payout report', slugs='add-weekly-payout-report')
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        lines = self.steps(r)
+        self.assertIn('→ GitNexus: another start is refreshing the index [ok]', lines, r.stderr)
+        self.assertFalse(any(line.startswith(('→ GitNexus: checking', '→ GitNexus: refreshing')) for line in lines),
+                         r.stderr)
+        self.assertNotIn('GitNexus is stale', r.stderr)
 
     def test_a_keyword_only_refresh_warns(self):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', flags='embed-fails')

@@ -8,8 +8,10 @@ start waits in line on the primary's `.cache/omc/design.lock` and never fails. T
 its shell before any Python: this process is already the pulled `design.py`, run from the primary's pulled justfile
 (`_design-start`), and never re-execs. The lock covers the primary's check again, a pull (`git fetch` and
 `git merge --ff-only` of `origin/<base>`) that is normally a no-op (a move it finds, a merge landed since the recipe's
-pull, is one `[warn]` and the start goes on with the code it started with), the GitNexus install and the refresh of
-the primary's index at the pulled tip, and the worktree cut. Neither GitNexus step refuses the start: a failure is
+pull, is one `[warn]` and the start goes on with the code it started with), and the worktree cut. After its release,
+the GitNexus install and the refresh of the primary's index at the pulled tip, under their own lock taken without
+waiting (held by another start: left to it), so that no start waits in line behind a refresh. Neither GitNexus step
+refuses the start: a failure is
 `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha>`. `feature/<slug>` is cut from
 `origin/<base>` with worktrunk, or entered again when the branch exists; after the release the context goes to
 `<worktree>/.cache/omc/brief.md`. Base and branch prefix come from omc/config.yaml; Claude only, no provider option.
@@ -48,6 +50,7 @@ from toolctx import Ctx, OmcError  # noqa: E402
 Refused = config.Refused  # exit 2, `error: <why>`
 
 LOCK = os.path.join('.cache', 'omc', 'design.lock')
+GITNEXUS_LOCK = os.path.join('.cache', 'omc', 'gitnexus.lock')  # the refresh's, outside the start's
 BRIEF = os.path.join('.cache', 'omc', 'brief.md')
 SESSION = '/brainstorm .cache/omc/brief.md'
 PROVIDER = 'claude'
@@ -214,9 +217,23 @@ def lock(primary):
 
 
 def gitnexus_steps(cfg, primary):
-    """The install, then the refresh of the primary's index at its HEAD; neither refuses the start: a failure is its
-    step's `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha or "no index">` (a failed
-    install skips the refresh)."""
+    """The install, then the refresh of the primary's index at its HEAD, after the start's lock is released and under
+    the primary's own `.cache/omc/gitnexus.lock`, taken without waiting: held by another start, which refreshes the
+    same index, both are left to it (`→ GitNexus: another start is refreshing the index [ok]`). Neither refuses the
+    start: a failure is its step's `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha or "no
+    index">` (a failed install skips the refresh)."""
+    path = os.path.join(primary, GITNEXUS_LOCK)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'a') as held:
+        try:
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            say('→ GitNexus: another start is refreshing the index [ok]')
+            return
+        _gitnexus_steps(cfg, primary)
+
+
+def _gitnexus_steps(cfg, primary):
     try:
         with step(f'GitNexus: checking the build at {cfg.gitnexus_commit[:7]}', long=True) as s:
             gitnexus.install(cfg, s.say)
@@ -325,7 +342,6 @@ def main(argv=None):
                 s.what += f' {before[:7]} → {after[:7]}' if before != after else f' {after[:7]} (current)'
                 if before != after:  # the recipe's shell pulled moments ago: a merge landed since
                     s.warn(f'{cfg.base} moved since the start\'s pull: running the code it started with')
-            gitnexus_steps(cfg, primary)
             exists = repo.git(primary, 'show-ref', '--verify', '--quiet', f'refs/heads/{branch}').returncode == 0
             what = f'entering {branch}' if exists else f'creating {branch} from origin/{cfg.base}'
             with step(f'worktree: {what}'):
@@ -333,6 +349,7 @@ def main(argv=None):
         finally:
             held.close()
         say('→ lock: released [ok]')
+        gitnexus_steps(cfg, primary)
         brief = os.path.join(path, BRIEF)
         try:
             os.makedirs(os.path.dirname(brief), exist_ok=True)
