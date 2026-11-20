@@ -304,10 +304,12 @@ Skip when `just omc reviewed` holds (`reviewed at <head>`): on to `verify`.
      for it: an agreeing ruling, recorded at once, is applied by `/review-decisions` in item 5; a collected question
      waits in the question file for `verify`, where `/review-decisions` poses it and applies the entry their ruling
      becomes.
-   - **Minor** findings are listed for the owner and fixed when they say, routed the same way. A finding the owner
-     leaves standing (a Minor they do not want fixed, a ruling they leave as it is) is written to
+   - **Minor** findings never stop the run: none is put to the owner. Each is routed the same way and fixed, unless
+     this session judges the change not worth making (a drift of wording the record and the code both read well
+     with), and every one, fixed or left standing, is named in the message and in the run's report. A finding left
+     standing (a Minor this session leaves, a ruling the owner leaves as it is) is written to
      `.cache/omc/review/standing`, one line each, `<severity> <where>: <what>`, so that a restart, whose reviews return
-     it again, names it as left standing with their word quoted instead of asking again:
+     it again, names it as left standing instead of routing it again:
 
    ```bash
    ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && mkdir -p .cache/omc/review && printf '%s\n' '<severity> <where>: <what>' >> .cache/omc/review/standing)
@@ -430,10 +432,14 @@ Skip when `just omc gate passed verify` holds: on to `push`.
    ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git push --force-with-lease -u origin "$(git branch --show-current)")
    ```
 
-   A push the `pre-push` hook refuses: its output to the owner, never past it. Then the message: the branch and its
-   commit, the description's subject, the gates as the tools answered (a skip said as the owner's, a build taken as
-   reported), the findings left standing (`.cache/omc/review/standing`), and that the owner opens the PR: its title
-   and text are the commit's message. Then on to `after`.
+   A push the `pre-push` hook refuses: its output to the owner, never past it. A push that fails for any other reason
+   (the remote unreachable or not a repository, the lease refused, the remote rejecting it) ends the step, and the
+   run, `failed`: the message gives git's last lines and the command that failed, and asks nothing; no retry, never a
+   change of the remote (`git remote set-url`, another remote), never a plain `--force`, and none of them offered as an
+   option or a default: what follows is the owner's; `after` is not offered. A push that went through: the message,
+   the branch and its commit, the description's subject, the gates as the tools answered (a skip said as the owner's,
+   a build taken as reported), the findings left standing (`.cache/omc/review/standing`), and that the owner opens the
+   PR: its title and text are the commit's message. Then on to `after`.
 
 ## `after` — offer what follows the push.
 
@@ -457,6 +463,8 @@ change rulings and the design; a squash or an amended message walks nothing agai
 
 - Never a push past a red question: `git clean`, `git one-commit`, `git rebased-on`, `reviewed`, `gate passed verify`
   and `just design-integrity-check` all hold, or the run goes where they send it; never `git push --no-verify`.
+- Never a push but the one of `push` item 5; a failed push ends the run `failed`, never a question, a changed remote
+  or a forced push.
 - Never `git rebase --abort` or `git rebase --skip`: a paused rebase is ▣ rebase's to continue, or the owner's own
   command.
 - Never edit a protected document (a file matched by `paths.protected`) but through `/apply-decision`
