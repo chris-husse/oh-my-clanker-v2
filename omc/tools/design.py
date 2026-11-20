@@ -20,7 +20,8 @@ Then the launch as omc's: on macOS the fish title hook's conf.d copy is reconcil
 (`notify.wire_worktree`, `preferredNotifChannel: auto`, never blocking); the environment takes the `uv` venv out
 (`VIRTUAL_ENV` and its `bin` on `PATH`) and sets `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`, `OMC_SLUG=<slug>` and
 `OMC_PROVIDER=claude` (the slug's `claude -p` gets the first only); then the process becomes the interactive shell of
-`$SHELL`'s basename (fish, zsh, bash, else sh, `shells.py`) in the worktree, titled `<branch>`, its herdr exit report
+`$SHELL`'s basename (fish, zsh, bash, else sh, `shells.py`) in the worktree, titled `<branch>` (inside herdr its tab
+labelled `<slug>` first, `herdr.name_tab`, a failure a `[warn]`), its herdr exit report
 the origin, which runs `claude -n <slug> [--model <orchestrator-model>] '/brainstorm .cache/omc/brief.md'`, under
 `direnv exec .` when `direnv version` runs. A first argument `--origin=<dir>` (the `design` recipe's
 `invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's. The standard library and pyyaml (config.py), through the justfile's
@@ -40,6 +41,7 @@ sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import config  # noqa: E402
 import fish_integration  # noqa: E402
 import gitnexus  # noqa: E402
+import herdr  # noqa: E402
 import notify  # noqa: E402
 import repo  # noqa: E402
 import shells  # noqa: E402
@@ -362,6 +364,9 @@ def main(argv=None):
             say(f'→ notifications: {", ".join(wired)} [ok]')
         env = launch_env(os.environ, slug)
         argv = startup(slug, cfg.orchestrator_model, has_direnv(env))
+        named = herdr.name_tab(Ctx.from_env(env), slug)  # the tab beside the title; None outside herdr
+        if named is not None:
+            say(f'→ herdr tab: {slug} ' + ('[ok]' if named else '[warn] herdr tab rename failed'))
         shell = shells.detect_shell(env)
         say(f'→ session: starting {shell.name} on claude "{SESSION}"')
         os.environ.clear()

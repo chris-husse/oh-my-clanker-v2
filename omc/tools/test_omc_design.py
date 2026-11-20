@@ -141,7 +141,8 @@ class DesignTest(unittest.TestCase):
         self.repo.git('push', '-q', 'origin', 'main')
         self.path = os.pathsep.join((self.bin_dir, self.fake.bin, os.environ['PATH']))
         self.env = self.fake.env(self.repo.env, path=self.path)
-        for name in (*LAUNCH_VARS, 'VIRTUAL_ENV', 'TERM_PROGRAM', 'LC_TERMINAL', 'ITERM_SESSION_ID'):
+        for name in (*LAUNCH_VARS, 'VIRTUAL_ENV', 'TERM_PROGRAM', 'LC_TERMINAL', 'ITERM_SESSION_ID', 'HERDR_TAB_ID',
+                     'HERDR_BIN_PATH'):
             self.env.pop(name, None)  # the caller's (a Claude session's, the uv venv's, the terminal's)
         self.env.update(SHELL='/usr/bin/fish', XDG_CONFIG_HOME=os.path.join(tmp, 'xdg'),
                         OMC_HOME=os.path.join(tmp, 'omc'))
@@ -452,6 +453,22 @@ class DesignTest(unittest.TestCase):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', env={'SHELL': '/bin/sh'})
         sh = self.assertStarted(r, branch, 'add a weekly payout report\n', shell='sh')['argv'][1]
         self.assertTrue(sh.startswith(shlex.join([*design.terminal_title_argv(), branch]) + ' || :; '), sh)
+
+    def test_inside_herdr_the_tab_is_labelled_with_the_slug(self):
+        log = os.path.join(self.repo.root, 'herdr.log')
+        fake = os.path.join(self.bin_dir, 'fake-herdr')
+        write_exe(fake, f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> {shlex.quote(log)}\n')
+        r = self.design('add a weekly payout report', slugs='add-weekly-payout-report',
+                        env={'TERM_PROGRAM': 'herdr', 'HERDR_TAB_ID': 'wW:t9', 'HERDR_BIN_PATH': fake})
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        self.assertEqual(self.read(log), 'tab rename wW:t9 add-weekly-payout-report\n')
+        self.assertIn('→ herdr tab: add-weekly-payout-report [ok]', self.steps(r))
+        self.again()
+        os.remove(log)
+        r = self.design('add a weekly payout report', slugs='add-weekly-payout-report')  # outside herdr
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        self.assertIsNone(self.read(log))
+        self.assertNotIn('herdr tab', r.stderr)
 
     def test_the_origin_is_the_invocation_directory(self):
         origin = os.path.join(self.repo.root, 'where I typed it')

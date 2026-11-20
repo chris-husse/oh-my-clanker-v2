@@ -9,6 +9,7 @@ import io
 import json
 import os
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -120,6 +121,44 @@ class HerdrCwdTest(unittest.TestCase):
     def test_herdr_cwd_rejects_extra_arguments(self):
         rc, _, _ = self.run_main(["x"], "")
         self.assertEqual(rc, 2)
+
+
+class NameTabTest(unittest.TestCase):
+    """`name_tab`: `herdr tab rename <HERDR_TAB_ID> <label>` inside herdr, through the context's bounded run (a
+    recorder here); nothing outside it."""
+
+    def ctx(self, env, rc=0, raises=None):
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append((list(argv), kwargs.get("timeout")))
+            if raises:
+                raise raises
+            return subprocess.CompletedProcess(argv, rc, "", "")
+        return herdr.Ctx(env=env, home=Path("/nonexistent"), run_bounded=run), calls
+
+    def test_inside_herdr_the_tab_is_renamed(self):
+        ctx, calls = self.ctx({"TERM_PROGRAM": "herdr", "HERDR_TAB_ID": "wW:t4"})
+        self.assertTrue(herdr.name_tab(ctx, "add-weekly-payout-report"))
+        self.assertEqual(calls, [(["herdr", "tab", "rename", "wW:t4", "add-weekly-payout-report"], 5)])
+
+    def test_herdrs_own_binary_is_used_when_named(self):
+        ctx, calls = self.ctx({"TERM_PROGRAM": "herdr", "HERDR_TAB_ID": "wW:t4", "HERDR_BIN_PATH": "/opt/h/herdr"})
+        self.assertTrue(herdr.name_tab(ctx, "x-y-z"))
+        self.assertEqual(calls[0][0][0], "/opt/h/herdr")
+
+    def test_outside_herdr_nothing_runs(self):
+        for env in ({}, {"TERM_PROGRAM": "tmux", "HERDR_TAB_ID": "wW:t4"}, {"TERM_PROGRAM": "herdr"}):
+            with self.subTest(env=env):
+                ctx, calls = self.ctx(env)
+                self.assertIsNone(herdr.name_tab(ctx, "x-y-z"))
+                self.assertEqual(calls, [])
+
+    def test_a_failed_rename_is_false_never_raised(self):
+        for rc, raises in ((1, None), (0, OSError("no herdr")), (0, TimeoutError("slow"))):
+            with self.subTest(rc=rc, raises=raises):
+                ctx, _ = self.ctx({"TERM_PROGRAM": "herdr", "HERDR_TAB_ID": "wW:t4"}, rc=rc, raises=raises)
+                self.assertFalse(herdr.name_tab(ctx, "x-y-z"))
 
 
 if __name__ == "__main__":

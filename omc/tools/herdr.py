@@ -1,6 +1,8 @@
-"""herdr sidebar cwd reports.
+"""herdr sidebar cwd reports, and the tab's label.
 
-Builds host-less OSC 7 sequences so herdr can show folder/branch in its sidebar. Run as the project's SessionStart
+Builds host-less OSC 7 sequences so herdr can show folder/branch in its sidebar. `name_tab` labels the pane's tab
+(`herdr tab rename $HERDR_TAB_ID <label>`, `just design` naming it after the slug where it sets the title); outside
+herdr it does nothing. Run as the project's SessionStart
 hook, `python3 -I -X pycache_prefix="$CLAUDE_PROJECT_DIR/.cache/pycache" "$CLAUDE_PROJECT_DIR/omc/tools/herdr.py"`
 with the hook's JSON on stdin (omc's `omc internal herdr-cwd`): always silent, exit 0, but an extra argument (the
 usage line, exit 2). Ported from omc 0.1.54's `src/omc/herdr.py`, its entry rewritten. The standard library only."""
@@ -82,6 +84,20 @@ def run_herdr_cwd(ctx: Ctx, stdin: TextIO) -> int:
     except (OSError, TimeoutError, ValueError):
         pass
     return 0
+
+
+def name_tab(ctx: Ctx, label: str) -> bool | None:
+    """Labels the pane's tab [label]: `<$HERDR_BIN_PATH or herdr> tab rename <$HERDR_TAB_ID> <label>`, 5 s at most.
+    None outside herdr (`TERM_PROGRAM` not `herdr`, or no `HERDR_TAB_ID`), nothing run; else whether it exited 0,
+    never raising."""
+    tab = ctx.env.get("HERDR_TAB_ID")
+    if ctx.env.get("TERM_PROGRAM") != "herdr" or not tab:
+        return None
+    try:
+        proc = ctx.run_bounded([ctx.env.get("HERDR_BIN_PATH") or "herdr", "tab", "rename", tab, label], timeout=5)
+    except (OSError, TimeoutError):
+        return False
+    return proc.returncode == 0
 
 
 def main(argv: list[str] | None = None) -> int:
