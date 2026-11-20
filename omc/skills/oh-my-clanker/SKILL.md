@@ -276,12 +276,15 @@ Then on to `gates`.
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc lint; just decisions check; just design-integrity-check; just links-check)
 ```
 
-then the fast gate, in the background (Bash's `run_in_background`) and polled
-(`(cd "$ROOT" && sleep 5 && tail -n 40 .cache/omc/gates/check.log)`) until it ends:
+then the fast gate, started detached from the worktree (a foreground `just omc gate run`, which writes its exit code
+into `.cache/omc/gates/check.exit` when it ends):
 
 ```bash
-ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc gate run check)
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && rm -f .cache/omc/gates/check.exit && nohup just omc gate run check >/dev/null 2>&1 & echo $!)
 ```
+
+and polled (`(cd "$ROOT" && sleep 5 && tail -n 40 .cache/omc/gates/check.log; cat .cache/omc/gates/check.exit)`)
+until the exit file holds the code; never a file outside the worktree.
 
 A red of this skill's own doing is fixed here and its check run again: a skill name, step or recipe `just omc lint`
 reports in a file this skill wrote or merged, a marker left, a malformed `omc/config.yaml`, a gate script that does

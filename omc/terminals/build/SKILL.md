@@ -1,6 +1,6 @@
 ---
 name: build
-description: "Run the project's build, `omc/bin/build` through `just omc gate run build` (no tests), in the background; fix and rerun until a whole run on a clean tree exits 0. Ends with a report and its OUTCOME line."
+description: "Run the project's build, `omc/bin/build` through `just omc gate run build` (no tests), started detached and polled; fix and rerun until a whole run on a clean tree exits 0. Ends with a report and its OUTCOME line."
 ---
 
 # build
@@ -46,18 +46,29 @@ nothing more.
   `just omc gate run` waits only for a slot of the gate's machine-wide limit (`concurrency` of `omc/config.yaml`;
   absent: one) and takes no lock of this worktree, so the rest is the terminal's own discipline.
 
-**Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`. A build may
-outlast a command timeout, so it always runs in the background: `(cd <root> && just omc gate run build)` with the Bash
-tool's `run_in_background`; its background task ends with the command's exit code. Then read the log every 30 seconds
-until the task has ended:
+**Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`.
+
+**A run, detached.** `just omc gate run build` is a foreground process: it runs the project's command and ends with
+its exit code. A build may outlast a tool call (ten minutes at most), and this terminal's Bash has no background
+option, so it starts the run detached, from the worktree:
 
 ```bash
-(cd <root> && sleep 30 && tail -n 40 .cache/omc/gates/build.log)
+(cd <root> && rm -f .cache/omc/gates/build.exit && nohup just omc gate run build >/dev/null 2>&1 & echo $!)
 ```
 
-A task that ended with no exit code (killed from outside) means the build died: the attempt starts again from step 1.
-An exit 2 with `error: no gate command omc/bin/build` (or `is not executable`) is the project's setup, not a failure:
-`needs_user`, naming it. Never start a second build while the first is running.
+The line it prints is the run's pid. The run writes its exit code into `.cache/omc/gates/build.exit` when it ends,
+beside its log `.cache/omc/gates/build.log`; read the two every 30 seconds until the exit file holds the code (`cat`
+fails while the run goes on):
+
+```bash
+(cd <root> && sleep 30 && tail -n 40 .cache/omc/gates/build.log; cat .cache/omc/gates/build.exit)
+```
+
+Never a file outside the worktree (a `/tmp/…` path is shared with the runs of every other worktree), never a wrapper of
+this terminal's own around the command. A run whose pid is gone (`kill -0 <pid>` fails) with no exit file died: the
+attempt starts again from step 1. An exit 2 with `error: no gate command omc/bin/build` (or `is not executable`, the
+log's last line) is the project's setup, not a failure: `needs_user`, naming it. Never start a second build while the
+first is running.
 
 ## The loop
 

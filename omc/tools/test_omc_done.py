@@ -218,6 +218,57 @@ class DoneTest(unittest.TestCase):
         self.assertEqual(self.passes(), [])
         self.not_passed()
 
+    def exit_file(self, gate='check'):
+        """The content of `.cache/omc/gates/<gate>.exit`, or None when it is absent."""
+        try:
+            with open(os.path.join(self.repo.work, '.cache', 'omc', 'gates', f'{gate}.exit'), encoding='utf-8') as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+
+    def test_run_writes_its_exit_code_beside_the_log(self):
+        write_bin(self.repo, 'check', 'echo red; exit 3')
+        self.assertEqual(self.run_gate().returncode, 3)
+        self.assertEqual(self.exit_file(), '3\n')
+        write_bin(self.repo, 'check', 'echo green')
+        self.assertEqual(self.run_gate().returncode, 0)
+        self.assertEqual(self.exit_file(), '0\n')
+
+    def test_run_removes_the_exit_file_at_its_start(self):
+        write_bin(self.repo, 'check', 'test -e .cache/omc/gates/check.exit && echo stale || echo fresh')
+        self.run_gate()
+        self.assertEqual(self.exit_file(), '0\n')
+        r = self.run_gate()
+        self.assertEqual(r.stdout, 'fresh\n')  # the last run's exit file was gone while this one ran
+
+    def test_a_refused_run_writes_exit_2_and_its_why_into_the_log(self):
+        write_bin(self.repo, 'check', mode=0o644)
+        self.assertIn('not executable', self.assertRefused('gate', 'run', 'check'))
+        self.assertEqual(self.exit_file(), '2\n')
+        self.assertEqual(self.gate_log(), 'error: omc/bin/check is not executable\n')
+
+    def test_a_silent_run_writes_exit_124(self):
+        self.add_config('silence:\n  check: 1\n')
+        write_bin(self.repo, 'check', 'sleep 600')
+        self.assertEqual(self.run_gate().returncode, 124)
+        self.assertEqual(self.exit_file(), '124\n')
+
+    def test_a_command_that_exited_while_a_descendant_holds_the_pipe_keeps_its_code(self):
+        """With a silence limit, a command that exited while a process it left behind still holds the output: the run
+        ends that group when the silence is up and returns the command's own code, with no kill line."""
+        self.add_config('silence:\n  check: 1\n')
+        write_bin(self.repo, 'check', 'sleep 600 & echo $! > .cache/child.pid; echo done; exit 0')
+        start = time.monotonic()
+        r = self.run_gate()
+        self.assertLess(time.monotonic() - start, 15)
+        self.assertEqual((r.returncode, r.stdout), (0, 'done\n'), r.stdout)
+        self.assertNotIn('killed', self.gate_log())
+        with open(os.path.join(self.repo.work, '.cache', 'child.pid'), encoding='utf-8') as f:
+            self.assertProcessGone(int(f.read()))
+        self.assertEqual(len(self.passes()), 1)
+        write_bin(self.repo, 'check', 'sleep 600 & echo red; exit 5')
+        self.assertEqual(self.run_gate().returncode, 5)
+
     # ------------------------------------------------------------------------- gate run: slots and silence
     def test_gate_run_waits_for_slot(self):
         write_bin(self.repo, 'check', 'echo ran')

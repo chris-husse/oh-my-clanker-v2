@@ -290,7 +290,7 @@ it changed: the code changes to the rule; a test changes only to say what its ru
 
 ### (d) The gates
 
-`/check` after every part: run `/check` (through the Skill tool, inline; it runs the check gate in the background and
+`/check` after every part: run `/check` (through the Skill tool, inline; it runs the check gate detached and
 polled, fixes and reruns within its own bound, and ends with its report and `OUTCOME` line, which are the answer).
 Before the run ends, `just decisions pending` must print `OK`, or name only what the owner left open on purpose (step
 2's "later", or a conflict of the impact reading they left open, named by `/audit` when it sends the run here), which
