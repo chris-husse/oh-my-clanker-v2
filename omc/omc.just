@@ -12,7 +12,7 @@ omc_py := "UV_PROJECT_ENVIRONMENT=" + quote(justfile_directory() / ".cache/venv"
 # Start a piece of work: a brief (under paths.briefs) or a sentence, from any checkout; first, in this shell before any Python, the primary checkout pulled (fetch and fast-forward of origin/<base>, when it is on <base> with no tracked changes; any failure left to design.py), a lone brief path made absolute, then the primary's pulled justfile runs _design-start, so the pulled recipe, uv.lock and design.py run: refused unless the primary checkout is on the base branch, clean and not diverged from its origin; the slug, then in line behind another start: the pull again (a move a [warn]), GitNexus installed and its index refreshed (neither stops the start), the worktree <branch prefix><slug> from the origin's base (entered again when the branch exists); then the interactive shell in it, which runs `claude … /brainstorm`; base and branch prefix from omc/config.yaml; one line per step on stderr
 [no-exit-message]
 [positional-arguments]
-@design *ARGS:
+design *ARGS:
     #!/usr/bin/env bash
     set -u
     common=$(git rev-parse --path-format=absolute --git-common-dir) || exit 2

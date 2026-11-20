@@ -584,6 +584,13 @@ class DesignTest(unittest.TestCase):
         self.assertIn('design', names)
         self.assertNotIn('_design-start', names)  # private
 
+    def test_the_recipe_is_quiet(self):
+        self.recipe_setup()
+        r = self.run_just(self.repo.work, 'add a weekly payout report')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn('#!/usr/bin/env bash', r.stderr)  # the script's body is never echoed
+        self.assertNotIn('common=$(git', r.stderr + r.stdout)
+
     def test_the_recipe_from_a_worktree_pulls_and_runs_the_primary(self):
         self.recipe_setup()
         tree = self.side_tree()
