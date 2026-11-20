@@ -6,7 +6,7 @@ comparing the pages' normalized text (what the link tools write without a decisi
 folder of the log's path (docs/ by default): the tool works with paths relative to it (`configure`). With no log and
 no protected page it is idle: every read verb prints nothing and exits 0. The entry form, the names `Affected` takes and the rules of `check` and `trim` are
 omc/tools/decisions/FORMAT.md; every link the tool writes follows docs/LINKS.md, relative to the log. git is read
-only in `git_inputs`, renumber's reads (`operation_in_progress`, `branch_files`, `base_refs`) and `committed_heads`
+only in `git_inputs`, `origin_main_log` (undefer's), renumber's reads (`operation_in_progress`, `branch_files`, `base_refs`) and `committed_heads`
 (update's and remove's); every other function takes texts.
 Run from the repository root: `just decisions <subcommand> ...` (`just decisions --help`)."""
 import argparse
@@ -33,8 +33,10 @@ READ_VERBS = ('check', 'guard', 'pending', 'list')  # what an idle tool (no log,
 FIELDS = ['Context', 'Decision', 'Automated', 'Affected', 'Source', 'Status']
 ENTRY_RE = re.compile(r'^### (\d+) (.+?)\s*$')
 FIELD_RE = re.compile(r'^\*\*(' + '|'.join(FIELDS) + r')\.\*\* ?(.*)$')
-STATUS_RE = re.compile(r'^recorded (\d{4}-\d\d-\d\d)(?: · applied (\d{4}-\d\d-\d\d))?$')  # the two forms
+STATUS_RE = re.compile(r'^recorded (\d{4}-\d\d-\d\d)(?: · deferred (\d{4}-\d\d-\d\d))?(?: · applied (\d{4}-\d\d-\d\d))?$')  # the four forms
 NEXT_RE = re.compile(r'Next: (\d+)(\*?)\s*$')
+OVERRULED_RE = re.compile(r'^overruled by (\d+)$')  # Automated after the owner's ruling <m> replaced the entry
+AUTOMATED_LINE_RE = re.compile(r'^\*\*Automated\.\*\*.*$', re.M)
 E2E_LINE_RE = re.compile(r'^[ \t]+\[E2E: .*\][ \t]*$')
 RULES_LINE_HASH_RE = re.compile(r'(T\d+(?:\.(?:\d+|x))*)@[0-9a-f]{4}')
 RULE_ID_RE = re.compile(r'^R\d+(?:\.(?:\d+|x))*-\d+$')
@@ -46,6 +48,7 @@ COMPONENT_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 QUESTION_FILE_FIRST = '# Questions: '
 QUESTION_RE = re.compile(r'^### (Q\d+) (.+?)\s*$')
 REF_RE = re.compile(r'\b(?P<word>[Dd]ecision(?P<pl>s)?)(?P<sp>\s+)(?P<ids>\d+(?(pl)(?:,\s+\d+(?![\d-]|\.\d))*(?:,?\s+and\s+\d+)?|(?:(?:,\s+\d+(?![\d-]|\.\d))*,?\s+and\s+\d+)?))(?![\d-]|\.\d)')  # decision 41, decisions 12 and 35, decisions 38, 41, 42 (a comma list only after the plural)
+OVERRULE_REF_RE = re.compile(r'(\*\*Automated\.\*\* overruled by )(\d+)$')  # an overrule names the entry m by id
 ANCHOR_RE = None  # a link to an entry's heading, `<the log's file name>#41%20…`: set by `configure`
 CONFLICT_RE = re.compile(r'^(<{7}|={7}|>{7})(?: |$)')  # a line git writes into a file it could not merge
 
@@ -431,8 +434,10 @@ def link_mentions(vault, text):
 # --------------------------------------------------------------------------------------------------------- the log
 
 class Status(Enum):
-    """An entry's Status: one of STATUS_RE's two forms, or neither."""
+    """An entry's Status: one of STATUS_RE's forms (recorded; recorded · deferred, a ruling left for a later branch;
+    applied, deferred before or not), or none."""
     RECORDED = 'recorded'
+    DEFERRED = 'deferred'
     APPLIED = 'applied'
     MALFORMED = 'malformed'
 
@@ -448,7 +453,8 @@ class Entry:
     @property
     def status(self):
         m = STATUS_RE.match(self.fields.get('Status', ''))
-        return Status.MALFORMED if not m else Status.APPLIED if m.group(2) else Status.RECORDED
+        return Status.MALFORMED if not m else Status.APPLIED if m.group(3) else Status.DEFERRED if m.group(2) \
+            else Status.RECORDED
 
     def text(self):
         return '\n'.join([f'### {self.n} {self.title}'] + self.body)
@@ -550,6 +556,12 @@ def on_main(e, log_base):
     return in_base(e, log_base) or trimmed_on_main(e, log_base)
 
 
+def of_branch(e, log_base):
+    """Whether entry e is the branch's: main's log never held it as the same decision, or main holds it in another
+    status (a deferred entry of main the branch took in and acted on). `list --branch` names these."""
+    return not on_main(e, log_base) or (in_base(e, log_base) and log_base.entries[e.n].status != e.status)
+
+
 def applied_on_main(e, log_base):
     """Whether entry e is applied on main: applied in the merge-base's log, or trimmed there since."""
     return (in_base(e, log_base) and log_base.entries[e.n].status == Status.APPLIED) or trimmed_on_main(e, log_base)
@@ -580,7 +592,7 @@ def guard(vault, changes, log_now, log_base):
 
 
 def unapplied(log):
-    """One line per recorded entry not applied."""
+    """One line per recorded entry not applied; a deferred entry waits for a later branch and is none."""
     return [f'PENDING: decision {e.n} recorded, not applied: {e.title}' for e in log.entries.values() if e.status == Status.RECORDED]
 
 
@@ -601,14 +613,33 @@ def open_questions(question_files):
     return out
 
 
+def disagreed(log):
+    """One line per entry acted on against a disagreement of /answer-doubt's two answers and not yet ruled by the owner."""
+    return [f'PENDING: decision {e.n} disagreed, not ruled: {e.title}' for e in log.entries.values()
+            if e.fields.get('Automated') == 'disagreed']
+
+
 def pending(log, question_files):
-    """The recorded entries not applied, then the open questions of the question files."""
-    return unapplied(log) + open_questions(question_files)
+    """The recorded entries not applied, the disagreed entries not ruled, then the open questions of the question files."""
+    return unapplied(log) + disagreed(log) + open_questions(question_files)
+
+
+def automated_ok(value):
+    """Automated's values (FORMAT.md › The entry): true, false, disagreed, overruled by <m>."""
+    return value in ('true', 'false', 'disagreed') or bool(OVERRULED_RE.match(value or ''))
+
+
+def automated_moved(old, new):
+    """The changes of Automated a committed entry may take, the owner's ruling after the run: none, disagreed to false
+    (confirm), disagreed or true to overruled by <m> (overrule)."""
+    return old == new or (old == 'disagreed' and new == 'false') or \
+        (old in ('disagreed', 'true') and bool(OVERRULED_RE.match(new or '')))
 
 
 def trim(log_now, log_base):
     """The working log's lines without every entry applied at the merge-base (on main), as the same decision; the
-    header, Next included, stays. Returns (lines, how many entries went)."""
+    header, Next included, stays (a deferred entry stays until it is applied on main). Returns (lines, how many
+    entries went)."""
     heads = entry_headings(log_now.lines)
     keep, k = list(log_now.lines[:heads[0][0]] if heads else log_now.lines), 0
     for j, ((i, _, _), e) in enumerate(zip(heads, log_now.order)):
@@ -622,11 +653,13 @@ def trim(log_now, log_base):
 
 def decision_refs(text):
     """(0-based line, id) of every reference to a decision in text, in order: `decision 41`, `Decisions 12 and 35`,
-    `decisions 12, 24 and 30`, and a link to an entry's heading in the log (`<the log's file name>#41%20…`, ANCHOR_RE)."""
+    `decisions 12, 24 and 30`, a link to an entry's heading in the log (`<the log's file name>#41%20…`, ANCHOR_RE), and
+    an entry's `**Automated.** overruled by <m>`."""
     out = []
     for i, line in enumerate(text.split('\n')):
         found = [(m.start('ids'), [int(n) for n in re.findall(r'\d+', m.group('ids'))]) for m in REF_RE.finditer(line)]
         found += [(m.start(2), [int(m.group(2))]) for m in ANCHOR_RE.finditer(line)]
+        found += [(m.start(2), [int(m.group(2))]) for m in OVERRULE_REF_RE.finditer(line)]
         out += [(i, n) for _, ns in sorted(found) for n in ns]
     return out
 
@@ -636,6 +669,7 @@ def rewrite_refs(line, ids):
     def num(k):
         return str(ids.get(int(k.group()), k.group()))
     line = REF_RE.sub(lambda m: m.group('word') + m.group('sp') + re.sub(r'\d+', num, m.group('ids')), line)
+    line = OVERRULE_REF_RE.sub(lambda m: m.group(1) + num(re.match(r'\d+', m.group(2))), line)
     return ANCHOR_RE.sub(lambda m: m.group(1) + num(re.match(r'\d+', m.group(2))), line)
 
 
@@ -644,6 +678,7 @@ def masked_refs(e):
     what stays the same when renumber moves it."""
     text = unlink('\n'.join([e.title] + e.body))
     text = REF_RE.sub(lambda m: m.group('word') + m.group('sp') + re.sub(r'\d+', '#', m.group('ids')), text)
+    text = re.sub(OVERRULE_REF_RE.pattern, r'\1#', text, flags=re.M)
     return ANCHOR_RE.sub(lambda m: m.group(1) + '#', text)
 
 
@@ -861,15 +896,18 @@ def check(vault, log, head_log, base_log, gone=frozenset(), refs=()):
         missing = [f for f in ('Context', 'Decision') if f not in e.fields]
         if missing:
             add(e.line, 'malformed-entry', f'{e.n} has no {" or ".join(missing)}')
-        if e.fields.get('Automated') not in ('true', 'false'):
-            add(e.line, 'malformed-entry', f'{e.n}: Automated is true or false')
+        if not automated_ok(e.fields.get('Automated')):
+            add(e.line, 'malformed-entry', f'{e.n}: Automated is true, false, disagreed or overruled by <n>')
+        elif (o := OVERRULED_RE.match(e.fields.get('Automated'))) and not \
+                (int(o.group(1)) > e.n and (int(o.group(1)) in log.entries or int(o.group(1)) in known_ids(base))):
+            add(e.line, 'dangling-overrule', f'{e.n}: overruled by {o.group(1)}, which is no later entry of the log')
         twice = [f for f in FIELDS if sum(1 for l in e.body if (m := FIELD_RE.match(l)) and m.group(1) == f) > 1]
         if twice:
             add(e.line, 'malformed-entry', f'{e.n} has {", ".join(twice)} twice')
         if e.status == Status.MALFORMED:
             add(e.line, 'malformed-status', f'{e.n}: {e.fields.get("Status", "no Status")}')
-        if e.n not in head.entries or head.entries[e.n].status == Status.RECORDED:
-            # new or still recorded: every link and every name resolves; an entry applied in HEAD is compared
+        if e.n not in head.entries or head.entries[e.n].status in (Status.RECORDED, Status.DEFERRED):
+            # new or still recorded or deferred (P6): every link and every name resolves; an entry applied in HEAD is compared
             # with HEAD's text only, since a later branch may delete a page it names
             body = '\n'.join(e.body)
             for l in scan_links(body):
@@ -887,6 +925,13 @@ def check(vault, log, head_log, base_log, gone=frozenset(), refs=()):
         if n not in known:
             problems.append(f'PROBLEM: {path}:{line}: dangling-decision: decision {n}, which neither the log nor main\'s '
                             'log ever held')
+    def moved_ok(old, new):  # automated_moved, an overrule's m followed to the id renumber gave it (by its title)
+        if automated_moved(old, new):
+            return True
+        a, b = OVERRULED_RE.match(old or ''), OVERRULED_RE.match(new or '')
+        ha, nb = a and head.entries.get(int(a.group(1))), b and log.entries.get(int(b.group(1)))
+        return bool(ha and nb) and unlink(ha.title) == unlink(nb.title)
+
     head_ids = [e.n for e in head.order]
     for n, he in head.entries.items():
         if head_ids.count(n) > 1:
@@ -903,10 +948,13 @@ def check(vault, log, head_log, base_log, gone=frozenset(), refs=()):
             if not applied_on_main(he, base):
                 add(0, 'removed', f'{n} is in HEAD and not in the working tree, and is not applied at the merge-base (only a trim removes)')
         elif he.status == Status.APPLIED:
-            if unlink(cur.text()) != unlink(he.text()):
+            # Automated apart: the owner's ruling after the run may move it (automated_moved)
+            if unlink(AUTOMATED_LINE_RE.sub('', cur.text())) != unlink(AUTOMATED_LINE_RE.sub('', he.text())) or \
+                    not moved_ok(he.fields.get('Automated'), cur.fields.get('Automated')):
                 add(cur.line, 'edited', f'{n} is applied in HEAD and its text changed')
-        elif [unlink(he.title)] + [unlink(he.fields.get(f, '')) for f in ('Context', 'Decision', 'Automated', 'Source')] != \
-                [unlink(cur.title)] + [unlink(cur.fields.get(f, '')) for f in ('Context', 'Decision', 'Automated', 'Source')]:
+        elif [unlink(he.title)] + [unlink(he.fields.get(f, '')) for f in ('Context', 'Decision', 'Source')] != \
+                [unlink(cur.title)] + [unlink(cur.fields.get(f, '')) for f in ('Context', 'Decision', 'Source')] or \
+                not moved_ok(he.fields.get('Automated'), cur.fields.get('Automated')):
             add(cur.line, 'edited', f'{n}: its title, Context, Decision, Automated or Source changed from HEAD')
     return problems
 
@@ -959,16 +1007,20 @@ def _affected(vault, names, gone):
     return ', '.join(vault.resolve(name, gone).written for name in names if name.strip())
 
 
-def add_decision(vault, log, title, context, decision, affected=(), source=None, automated=False, gone=frozenset(), today=None):
-    """Appends entry `### <Next>` with Status recorded today and advances the header's Next; returns the id. Refuses a
-    missing title, context or decision, any name or source that resolves to nothing, and a header without Next."""
+def add_decision(vault, log, title, context, decision, affected=(), source=None, automated=False, gone=frozenset(), today=None,
+                 disagreed=False):
+    """Appends entry `### <Next>` with Status recorded today and advances the header's Next; returns the id. Automated:
+    disagreed when disagreed, true when automated, else false. Refuses both at once, a missing title, context or
+    decision, any name or source that resolves to nothing, and a header without Next."""
+    if automated and disagreed:
+        raise RefError('an entry is automated or disagreed, not both')
     if log.next is None:
         raise RefError(f'the header of {VAULT}{LOG} holds no "Next: <n>"')
     title, context, decision = _clean(title, 'title'), _clean(context, 'context'), _clean(decision, 'decision')
     fields = {
         'Context': link_mentions(vault, context),
         'Decision': link_mentions(vault, decision),
-        'Automated': 'true' if automated else 'false',
+        'Automated': 'disagreed' if disagreed else 'true' if automated else 'false',
         'Affected': _affected(vault, affected, gone),
         'Source': vault.source(source) if source else '',
         'Status': f'recorded {_today(today)}',
@@ -979,19 +1031,98 @@ def add_decision(vault, log, title, context, decision, affected=(), source=None,
 
 
 def apply_decision(vault, log, n, affected, gone=frozenset(), today=None):
-    """Marks recorded entry n applied today with the real Affected set (empty: applied with nothing to change, the
-    field dropped). Refuses an unknown id and an entry not recorded (already applied, or malformed)."""
+    """Marks recorded or deferred entry n applied today with the real Affected set (empty: applied with nothing to
+    change, the field dropped); a deferred one keeps its history, `recorded D1 · deferred D2 · applied D3`. Refuses an
+    unknown id and an entry neither recorded nor deferred (already applied, or malformed)."""
     e = log.entries.get(n)
     if e is None:
         raise RefError(f'no such entry: {n}')
     if e.status == Status.APPLIED:
         raise RefError(f'{n} is already applied')
-    if e.status != Status.RECORDED:
-        raise RefError(f'{n} has a malformed Status; only a recorded entry can be applied')
+    if e.status not in (Status.RECORDED, Status.DEFERRED):
+        raise RefError(f'{n} has a malformed Status; only a recorded or deferred entry can be applied')
     fields = dict(e.fields)
     fields['Affected'] = _affected(vault, affected, gone)
-    fields['Status'] = f'recorded {STATUS_RE.match(e.fields["Status"]).group(1)} · applied {_today(today)}'
-    write_log(vault, log.lines[:e.line - 1] + render_entry(n, e.title, fields) + log.lines[e.line + len(e.body):])
+    m = STATUS_RE.match(e.fields['Status'])
+    deferred = f' · deferred {m.group(2)}' if m.group(2) else ''
+    fields['Status'] = f'recorded {m.group(1)}{deferred} · applied {_today(today)}'
+    _rewrite(vault, log, e, fields)
+
+
+def _rewrite(vault, log, e, fields):
+    write_log(vault, log.lines[:e.line - 1] + render_entry(e.n, e.title, fields) + log.lines[e.line + len(e.body):])
+
+
+def defer_decision(vault, log, n, today=None):
+    """Defers recorded entry n to main: Status `recorded D1 · deferred <today>`, the ruling left for a later branch
+    (it backs no page and is not pending; apply_decision takes it there). Refuses an unknown id, an entry not recorded
+    (applied, deferred or malformed) and an overruling entry, one another entry's `**Automated.** overruled by <n>`
+    names: an overrule undoes work this branch did and is applied in it (FORMAT.md › "The entry": never deferred). The log is
+    untouched on a refusal."""
+    e = log.entries.get(n)
+    if e is None:
+        raise RefError(f'no such entry: {n}')
+    if e.status in (Status.APPLIED, Status.DEFERRED):
+        raise RefError(f'{n} is already {e.status.value}: only a recorded entry is deferred')
+    if e.status != Status.RECORDED:
+        raise RefError(f'{n} has a malformed Status; only a recorded entry is deferred')
+    over = [o.n for o in log.order if (m := OVERRULED_RE.match(o.fields.get('Automated', ''))) and int(m.group(1)) == n]
+    if over:
+        raise RefError(f'{n} overrules {", ".join(map(str, over))}: an overruling entry is applied in this branch, never deferred')
+    fields = dict(e.fields)
+    fields['Status'] = f'{e.fields["Status"]} · deferred {_today(today)}'
+    _rewrite(vault, log, e, fields)
+
+
+def undefer_decision(vault, log, n, main_log):
+    """Takes deferred entry n back to recorded, its recorded date kept. main_log: main's log (origin/main's, parsed;
+    None: main holds none). Refuses an unknown id, an entry not deferred, and one main holds deferred (the same id and
+    title): a deferral on main is main's, carried by the branch that applies it. The log is untouched on a refusal."""
+    e = log.entries.get(n)
+    if e is None:
+        raise RefError(f'no such entry: {n}')
+    if e.status != Status.DEFERRED:
+        raise RefError(f'{n} is not deferred (it is {e.status.value}): only a deferred entry is undeferred')
+    on = main_log.entries.get(n) if main_log is not None else None
+    if on is not None and unlink(on.title) == unlink(e.title) and on.status == Status.DEFERRED:
+        raise RefError(f'main holds {n} deferred: a deferral on main is undone only by applying the entry on a branch')
+    fields = dict(e.fields)
+    fields['Status'] = f'recorded {STATUS_RE.match(e.fields["Status"]).group(1)}'
+    _rewrite(vault, log, e, fields)
+
+
+def _set_automated(vault, log, e, value):
+    fields = dict(e.fields)
+    fields['Automated'] = value
+    _rewrite(vault, log, e, fields)
+
+
+def confirm_decision(vault, log, n):
+    """The owner ruled disagreed entry n as it stands: Automated disagreed becomes false. Refuses an unknown id and an
+    entry not disagreed, the log untouched."""
+    e = log.entries.get(n)
+    if e is None:
+        raise RefError(f'no such entry: {n}')
+    if e.fields.get('Automated') != 'disagreed':
+        raise RefError(f'{n} is not disagreed: only a disagreed entry is confirmed')
+    _set_automated(vault, log, e, 'false')
+
+
+def overrule_decision(vault, log, n, m):
+    """The owner's ruling m, a new entry recorded after n, replaced automated entry n (disagreed or true): its Automated
+    becomes `overruled by <m>`. Refuses an unknown id, an entry no automated ruling, m not after n and an m that is not
+    the owner's ruling (its Automated not false), the log untouched."""
+    e = log.entries.get(n)
+    for k in (n, m):
+        if k not in log.entries:
+            raise RefError(f'no such entry: {k}')
+    if e.fields.get('Automated') not in ('disagreed', 'true'):
+        raise RefError(f'{n} is not disagreed or true: only an automated ruling is overruled')
+    if m <= n:
+        raise RefError(f'{m} is not recorded after {n}: the owner\'s ruling that overrules it is a new entry')
+    if log.entries[m].fields.get('Automated') != 'false':
+        raise RefError(f'{m} is not the owner\'s ruling (Automated {log.entries[m].fields.get("Automated")}, not false)')
+    _set_automated(vault, log, e, f'overruled by {m}')
 
 
 def ever_committed(e, heads):
@@ -1014,8 +1145,11 @@ def update_decision(vault, log, n, heads, title=None, context=None, decision=Non
                     source=None, gone=frozenset()):
     """Rewrites the given fields of entry n, never committed (heads: committed_heads), as add-decision writes them;
     the fields not given and the Status stay. affected=[] drops Affected, source='' drops Source. Refuses an entry
-    ever committed and a name or source that resolves to nothing, the log untouched."""
+    ever committed, automated on an entry disagreed or overruled (confirm and overrule move it) and a name or source
+    that resolves to nothing, the log untouched."""
     e = _uncommitted(log, n, heads)
+    if automated is not None and (e.fields.get('Automated') == 'disagreed' or OVERRULED_RE.match(e.fields.get('Automated', ''))):
+        raise RefError(f'{n} is Automated {e.fields.get("Automated")}: only confirm or overrule moves it, never update --automated')
     fields = dict(e.fields)
     if context is not None:
         fields['Context'] = link_mentions(vault, _clean(context, 'context'))
@@ -1102,6 +1236,21 @@ def git_inputs(repo, docs):
         changes[rel] = (git_show(repo, base, p), now)
     return Inputs(base, git_show(repo, 'HEAD', prefix + LOG), git_show(repo, base, prefix + LOG), changes,
                   main_logs(repo, base, prefix + LOG))
+
+
+def origin_main_log(repo, docs):
+    """The log at origin/<base>'s tip (undefer's read: whether main holds an entry deferred), or None when
+    origin/<base> holds no log; a missing origin/<base> is a refusal. repo: the repository's root; docs: the vault's
+    path relative to it."""
+    try:
+        branch = config.load(repo).base
+    except config.Refused as e:
+        raise RefError(str(e)) from None
+    if subprocess.run(['git', '-C', repo, 'rev-parse', '--verify', '-q', f'origin/{branch}^{{commit}}'],
+                      capture_output=True).returncode != 0:
+        raise RefError(f'no origin/{branch}: whether {branch} holds the entry deferred cannot be told')
+    prefix = '' if docs in ('', '.') else docs.rstrip('/') + '/'
+    return git_show(repo, f'origin/{branch}', prefix + LOG)
 
 
 def unmerged(repo, path):
@@ -1276,26 +1425,41 @@ def main(argv=None):
     p.add_argument('--context', required=True)
     p.add_argument('--decision', required=True)
     p.add_argument('--automated', action='store_true', help='a decision no owner ruling was needed for, settled by the docs')
+    p.add_argument('--disagreed', action='store_true',
+                   help="acted on from /design on although /answer-doubt's two answers disagreed")
     p.add_argument('--affected', default='', help='comma-separated names (FORMAT.md): R9.3-2, T9.3, W9.2, shift.incident, '
                                                   'views/shift_incident, incident_row, screens/FORMAT.md, architecture/operations.md#Incidents')
     p.add_argument('--source', help='<vault path>#<heading>: a question of a question file, an item of a review file')
     p = sub.add_parser('apply-decision', help='mark a recorded entry applied, with the real Affected set')
     p.add_argument('--id', type=int, required=True)
     p.add_argument('--affected', required=True, help='the real set, comma-separated; "" = applied with nothing to change')
+    p = sub.add_parser('defer', help='defer a recorded entry to main, for a later branch: Status recorded · deferred today; '
+                                     'refuses an overruling entry')
+    p.add_argument('--id', type=int, required=True)
+    p = sub.add_parser('undefer', help='take a deferred entry back to recorded; refused once origin/main holds it deferred')
+    p.add_argument('--id', type=int, required=True)
+    p = sub.add_parser('confirm', help='the owner ruled a disagreed entry as it stands: Automated false')
+    p.add_argument('id', type=int)
+    p = sub.add_parser('overrule', help="the owner's ruling m replaced an automated entry: Automated overruled by <m>")
+    p.add_argument('id', type=int)
+    p.add_argument('--by', type=int, required=True, help="the owner's ruling, an entry recorded after it")
     p = sub.add_parser('update', help='rewrite the given fields of an entry never committed; refuses one ever committed')
     p.add_argument('id', type=int)
     p.add_argument('--title')
     p.add_argument('--context')
     p.add_argument('--decision')
-    p.add_argument('--automated', choices=('true', 'false'))
+    p.add_argument('--automated', choices=('true', 'false'), help='refused on an entry disagreed or overruled: confirm or overrule moves it')
     p.add_argument('--affected', help='comma-separated names, as add-decision takes them; "" drops the field')
     p.add_argument('--source', help='<vault path>#<heading>; "" drops the field')
     p = sub.add_parser('remove', help='drop an entry never committed, no file naming it; refuses one ever committed')
     p.add_argument('id', type=int)
     p = sub.add_parser('show', help='entries by id, in full')
     p.add_argument('ids', nargs='+', type=int)
-    sub.add_parser('list', help='every entry, one line each')
-    p = sub.add_parser('pending', help='the recorded entries not applied and the open questions of the question files; exit 1 when any')
+    p = sub.add_parser('list', help='every entry, one line each')
+    p.add_argument('--branch', action='store_true',
+                   help="only the branch's entries: those main's log never held as the same decision, and main's ones "
+                        'the branch changed the status of (a deferred entry it took in and applied)')
+    p = sub.add_parser('pending', help='the recorded entries not applied (a deferred one is none), the disagreed entries not ruled and the open questions of the question files; exit 1 when any')
     p.add_argument('--questions', action='store_true', help='the open questions of the question files alone, not the recorded entries')
     sub.add_parser('guard', help='every guarded page changed since the merge-base named by an entry applied on this branch; exit 1 when not')
     sub.add_parser('trim', help='drop every entry applied at the merge-base (on main); Next stays')
@@ -1327,7 +1491,23 @@ def main(argv=None):
         log = parse_log(vault.text(LOG))
         if args.command == 'add-decision':
             print(add_decision(vault, log, args.title, args.context, args.decision, _split(args.affected), args.source,
-                               args.automated, gone()))
+                               args.automated, gone(), disagreed=args.disagreed))
+        elif args.command == 'defer':
+            defer_decision(vault, log, args.id)
+            print(args.id)
+        elif args.command == 'undefer':
+            repo = repo_of(vault.root)
+            if repo is None:
+                raise RefError(f'{vault.root} is in no git repository: whether main holds the entry deferred is git\'s')
+            on_main_text = origin_main_log(*repo)
+            undefer_decision(vault, log, args.id, parse_log(on_main_text) if on_main_text is not None else None)
+            print(args.id)
+        elif args.command == 'confirm':
+            confirm_decision(vault, log, args.id)
+            print(args.id)
+        elif args.command == 'overrule':
+            overrule_decision(vault, log, args.id, args.by)
+            print(args.id)
         elif args.command == 'apply-decision':
             apply_decision(vault, log, args.id, _split(args.affected), gone())
             print(args.id)
@@ -1354,7 +1534,8 @@ def main(argv=None):
                     raise RefError(f'no such entry: {n}')
             print('\n\n'.join(log.entries[n].text() for n in args.ids))
         elif args.command == 'list':
-            for e in log.entries.values():
+            main_entries = inputs().main() if args.branch else None
+            for e in (x for x in log.entries.values() if main_entries is None or of_branch(x, main_entries)):
                 print(f'{e.n}  {e.status.value}  Automated: {e.fields.get("Automated", "-")}  {e.title}')
         elif args.command == 'pending':
             return _report(open_questions(question_files(vault)) if args.questions else pending(log, question_files(vault)))

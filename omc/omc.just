@@ -3,13 +3,13 @@
 # .cache/venv; `--frozen` installs exactly the lock and never resolves
 omc_py := "UV_PROJECT_ENVIRONMENT=" + quote(justfile_directory() / ".cache/venv") + " uv run --project omc --frozen python -I -X pycache_prefix=.cache/pycache"
 
-# The omc/ pipeline's tool, its config omc/config.yaml: enter, record, plan, git, rebase, impact, gate, reviewed, settled, models, handoff, lint, gitnexus, title, shell-integration (--help)
+# The omc/ pipeline's tool, its config omc/config.yaml: enter, record, plan, git, rebase, impact, gate, reviewed, settled, models, handoff, lint, gitnexus, title, shell-integration, shots, todos (--help)
 [no-exit-message]
 [positional-arguments]
 @omc *ARGS:
     {{omc_py}} omc/tools/omc.py "$@"
 
-# Start a piece of work: a brief (under paths.briefs) or a sentence, from any checkout; first, in this shell before any Python, the primary checkout pulled (fetch and fast-forward of origin/<base>, when it is on <base> with no tracked changes; any failure left to design.py), a lone brief path made absolute, then the primary's pulled justfile runs _design-start, so the pulled recipe, uv.lock and design.py run: refused unless the primary checkout is on the base branch, clean and not diverged from its origin; the slug, then in line behind another start: the pull again (a move a [warn]), the worktree <branch prefix><slug> from the origin's base (entered again when the branch exists); out of the line, GitNexus installed and its index refreshed (left to another start refreshing it; neither stops the start); then the interactive shell in it, which runs `claude … /brainstorm`; base and branch prefix from omc/config.yaml; one line per step on stderr
+# Start a piece of work: a brief (under paths.briefs), a sentence, or --deferred <ids> (the brief made of those deferred entries of the origin's base log), from any checkout; first, in this shell before any Python, the primary checkout pulled (fetch and fast-forward of origin/<base>, when it is on <base> with no tracked changes; any failure left to design.py), a lone brief path made absolute, then the primary's pulled justfile runs _design-start, so the pulled recipe, uv.lock and design.py run: refused unless the primary checkout is on the base branch, clean and not diverged from its origin; the slug, then in line behind another start: the pull again (a move a [warn]), the worktree <branch prefix><slug> from the origin's base (entered again when the branch exists); out of the line, GitNexus installed and its index refreshed (left to another start refreshing it; neither stops the start); then the interactive shell in it, which runs `claude … /brainstorm`; base and branch prefix from omc/config.yaml; one line per step on stderr
 [no-exit-message]
 [positional-arguments]
 design *ARGS:
@@ -35,12 +35,12 @@ design *ARGS:
 @_design-start *ARGS:
     {{omc_py}} omc/tools/design.py "$@"
 
-# The decision log's tool (omc/tools/decisions/FORMAT.md), the log at paths.decision_log: add-decision, apply-decision, update, remove, show, list, pending, guard, trim, renumber, check (--help)
+# The decision log's tool (omc/tools/decisions/FORMAT.md), the log at paths.decision_log: add-decision, apply-decision, defer, undefer, confirm, overrule, update, remove, show, list, pending, guard, trim, renumber, check (--help)
 [positional-arguments]
 decisions *ARGS:
     {{omc_py}} omc/tools/decisions/decisions.py "$@"
 
-# The mechanical checks of the decisions in one command (omc/tools/decisions/FORMAT.md › The integrity check): the log, every entry of the branch with its row in the branch's record, the vault's links, the guard, and (implementation, the default) nothing recorded unapplied and, without --defer-questions, no open question (the questions wait for the push gate); no build, no test; [--phase design|implementation] [--defer-questions]
+# The mechanical checks of the decisions in one command (omc/tools/decisions/FORMAT.md › The integrity check): the log, every entry of the branch with its row in the branch's record, the vault's links, the guard, and (implementation, the default) nothing recorded unapplied and, without --defer-questions, no open question and no entry left disagreed (both wait for the push gate); no build, no test; /audit's push and the pre-push hook pass neither flag, verify's step --defer-questions; [--phase design|implementation] [--defer-questions]
 [positional-arguments]
 design-integrity-check *ARGS:
     {{omc_py}} omc/tools/decisions/integrity.py "$@"

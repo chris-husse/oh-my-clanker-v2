@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import decisions  # noqa: E402
 import integrity  # noqa: E402
-from decision_log_fixtures import FIXTURE, LOG_HEAD, T05, APPLIED, RECORDED, write_vault, entry, log_text, parse  # noqa: E402
+from decision_log_fixtures import FIXTURE, LOG_HEAD, T05, APPLIED, RECORDED, DEFERRED, write_vault, entry, log_text, parse  # noqa: E402
 
 OMC_JUST = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'omc.just')  # the real recipes
 RECORD_PATH = 'superpowers/specs/2026-01-06-x-design.md'
@@ -54,6 +54,14 @@ class IntegrityTest(unittest.TestCase):
         self.assertEqual(run('implementation', log, records={RECORD_PATH: RECORD}),
                          [f'PROBLEM: pending: PENDING: decision {1} recorded, not applied: Incidents need a photo'])
 
+    def test_deferred_entry_passes_implementation(self):
+        # a ruling deferred to main backs no page and waits for a later branch: the push gate lets it through
+        log = parse(2, entry(1, DEFERRED, 'R5.2.1-1'))
+        for p in integrity.PHASES:
+            self.assertEqual(run(p, log, records={RECORD_PATH: RECORD}), [], p)
+        out = run('implementation', log, {'design/T05-the-shift.md': (T05, EDITED)}, records={RECORD_PATH: RECORD})
+        self.assertEqual([l.split(': ')[1] for l in out], ['guard'])  # a deferred entry backs no page
+
     def test_a_guarded_page_changed_without_an_applied_entry_is_a_problem_in_both(self):
         for p in integrity.PHASES:
             out = run(p, parse(1), {'design/T05-the-shift.md': (T05, EDITED)})
@@ -62,11 +70,23 @@ class IntegrityTest(unittest.TestCase):
 
     def test_an_open_question_waits_for_the_push_gate(self):
         files = {'reviews/2026-11-12-x-1.md': FIXTURE['reviews/2026-11-12-x-1.md']}
-        self.assertEqual(run('implementation', parse(1), files=files),   # the pre-push hook's and verify's case
+        self.assertEqual(run('implementation', parse(1), files=files),   # the pre-push hook's and /audit's push's case
                          ['PROBLEM: questions: PENDING: docs/reviews/2026-11-12-x-1.md:3: Q1 A question is open'])
         self.assertEqual(run('design', parse(1), files=files), [])
         self.assertEqual(run('implementation', parse(1), files=files, defer_questions=True), [])
         self.assertEqual(run('design', parse(1), files=files, defer_questions=True), [])
+
+    def test_a_disagreed_entry_is_a_problem_at_the_push_gate_only(self):
+        log = parse(2, entry(1, APPLIED, 'R5.2.1-1', automated='disagreed'))
+        line = 'PROBLEM: disagreed: PENDING: decision 1 disagreed, not ruled: Incidents need a photo'
+        self.assertEqual(run('implementation', log, records={RECORD_PATH: RECORD}), [line])   # /audit's push, pre-push
+        self.assertEqual(run('implementation', log, records={RECORD_PATH: RECORD}, defer_questions=True), [])  # /implement, verify
+        self.assertEqual(run('design', log, records={RECORD_PATH: RECORD}), [])
+
+    def test_a_confirmed_or_overruled_entry_is_no_problem(self):
+        for value in ('false', 'overruled by 2'):
+            log = parse(3, entry(1, APPLIED, 'R5.2.1-1', automated=value), entry(2, APPLIED, 'R5.2.1-1', title='Two'))
+            self.assertEqual(run('implementation', log, records={RECORD_PATH: RECORD + record(2).split('|---|---|---|---|\n')[1]}), [], value)
 
     def test_an_entry_without_its_row_is_a_problem(self):
         out = run('design', parse(2, entry(1, APPLIED, 'R5.2.1-1')), records={RECORD_PATH: '# R\n'})

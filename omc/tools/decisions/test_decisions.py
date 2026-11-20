@@ -11,7 +11,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import decisions  # noqa: E402
-from decision_log_fixtures import (FIXTURE, LOG_HEAD, STORY, T05, APPLIED, RECORDED, write_vault, entry,  # noqa: E402
+from decision_log_fixtures import (FIXTURE, LOG_HEAD, STORY, T05, APPLIED, RECORDED, DEFERRED, write_vault, entry,  # noqa: E402
                                    log_text, parse, config, config_text, PATHS)
 import omc_fixtures  # noqa: E402  (decision_log_fixtures put omc/tools on the path)
 
@@ -218,6 +218,20 @@ class UpdateRemoveTest(VaultCase):
             decisions.update_decision(self.vault, self.log_now(), 9, set(), decision='Other.')
         self.assertEqual(self.vault.text(decisions.LOG), before)
 
+    def test_update_refuses_automated_on_a_disagreed_or_overruled_entry(self):
+        decisions.add_decision(self.vault, self.log_now(), 'Disagreed', 'C4.', 'D4.', disagreed=True, today='2026-11-12')
+        decisions.add_decision(self.vault, self.log_now(), 'Overruled', 'C5.', 'D5.', disagreed=True, today='2026-11-12')
+        decisions.add_decision(self.vault, self.log_now(), 'The owner', 'C6.', 'D6.', today='2026-11-12')
+        decisions.overrule_decision(self.vault, self.log_now(), 5, 6)
+        before = self.vault.text(decisions.LOG)
+        for n in (4, 5):
+            for automated in (True, False):
+                with self.assertRaisesRegex(decisions.RefError, 'confirm.*overrule', msg=(n, automated)):
+                    decisions.update_decision(self.vault, self.log_now(), n, set(), automated=automated)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+        decisions.update_decision(self.vault, self.log_now(), 4, set(), decision='D4 again.')
+        self.assertEqual(self.log_now().entries[4].fields['Automated'], 'disagreed')
+
     def test_remove_drops_the_entry_and_lowers_next(self):
         decisions.remove_decision(self.vault, self.log_now(), 3, set())
         self.assertEqual(self.vault.text(decisions.LOG).count('### '), 2)
@@ -319,6 +333,10 @@ class PendingTest(unittest.TestCase):
             files = {'reviews/2026-11-12-x-1.md': self.QUESTIONS.replace('**Status.** open', f'**Status.** {status}')}
             self.assertEqual(decisions.pending(parse(1), files), [], status)
 
+    def test_names_no_deferred(self):
+        log = parse(3, entry(1, DEFERRED, title='One'), entry(2, RECORDED, title='Two'))
+        self.assertEqual(decisions.pending(log, {}), ['PENDING: decision 2 recorded, not applied: Two'])
+
 
 class TrimTest(unittest.TestCase):
     def test_trim_drops_the_entries_applied_at_the_merge_base(self):
@@ -330,6 +348,17 @@ class TrimTest(unittest.TestCase):
         self.assertEqual('\n'.join(lines).rstrip('\n') + '\n',
                          log_text(5, entry(2, RECORDED, title='Pending'), entry(3, APPLIED, title='Branch')))
         self.assertEqual(decisions.trim(now, decisions.parse_log(OLD_HEAD)), (now.lines, 0))
+
+    def test_keeps_deferred_until_applied_on_main(self):
+        later = f'{DEFERRED} · applied 2026-11-14'
+        now = parse(4, entry(1, DEFERRED, title='Deferred'), entry(2, later, title='Applied here'),
+                    entry(3, later, title='Applied on main'))
+        base = parse(4, entry(1, DEFERRED, title='Deferred'), entry(2, DEFERRED, title='Applied here'),
+                     entry(3, later, title='Applied on main'))
+        lines, k = decisions.trim(now, base)
+        self.assertEqual(k, 1)
+        self.assertEqual('\n'.join(lines).rstrip('\n') + '\n',
+                         log_text(4, entry(1, DEFERRED, title='Deferred'), entry(2, later, title='Applied here')))
 
 
 class TwoBranchesTest(VaultCase):
@@ -399,6 +428,28 @@ class TwoBranchesTest(VaultCase):
         self.assertEqual(moved, [(2, 3), (3, 4)])
         self.assertIn('**Context.** Replaces decision 3; decision 1 stands.', lines)
         self.assertEqual(files, {'docs/s.md': 'Per decision 3.\nMain\'s decision 2.\nDecisions 1, 3 and 4.\n'})
+
+    def test_renumber_rewrites_an_overrule_and_check_follows_it(self):
+        """An overrule made before the rebase (at answer-doubt's limit): `overruled by <m>` follows m to its new id."""
+        b3 = entry(3, APPLIED, title='Receipts are kept', context='The owner ruled.')
+        b2 = self.b(2).replace('**Automated.** false', '**Automated.** overruled by 3')
+        head = parse(4, self.one, self.a2, b2, b3)
+        lines, _, moved, _ = decisions.renumber(parse(4, self.one, self.a2, b2, b3), self.main, {})
+        self.assertEqual(moved, [(2, 3), (3, 4)])
+        self.assertIn('**Automated.** overruled by 4', lines)
+        now = decisions.parse_log('\n'.join(lines))
+        self.assertEqual(decisions.check(self.vault, now, head, self.main), [])
+        # n keeps its id, m moves: own entries 3 and 5 after main's Next 3 become 3 and 4
+        n3 = entry(3, APPLIED, title='Incidents need a photo', context='Agreed.', automated='overruled by 5')
+        m5 = entry(5, APPLIED, title='Receipts are kept', context='The owner ruled.')
+        head = parse(6, self.one, self.a2, n3, m5)
+        lines, _, moved, _ = decisions.renumber(head, self.main, {})
+        self.assertEqual(moved, [(5, 4)])
+        self.assertIn('**Automated.** overruled by 4', lines)
+        self.assertEqual(decisions.check(self.vault, decisions.parse_log('\n'.join(lines)), head, self.main), [])
+        # an overrule naming an id no entry of the branch's holds is a dangling reference
+        with self.assertRaisesRegex(decisions.RefError, 'decision 9'):
+            decisions.renumber(parse(4, self.one, self.a2, b2.replace('overruled by 3', 'overruled by 9'), b3), self.main, {})
 
     def test_check_reports_a_reference_to_a_decision_no_log_held(self):
         now = parse(3, self.one, self.a2)
@@ -540,12 +591,15 @@ class ResolveLogTest(unittest.TestCase):
             decisions.resolve_log(LOG_HEAD, LOG_HEAD + '<<<<<<< HEAD\n', LOG_HEAD)
 
 
-class CheckTest(VaultCase):
+class KindsMixin:
     def kinds(self, now, head=None, base=None):
         problems = decisions.check(self.vault, now if not isinstance(now, str) else decisions.parse_log(now),
                                    decisions.parse_log(head) if head is not None else None,
                                    decisions.parse_log(base) if base is not None else None)
         return [p.split(': ')[2] for p in problems]
+
+
+class CheckTest(KindsMixin, VaultCase):
 
     def test_a_clean_log(self):
         text = log_text(3, entry(1, APPLIED, f'R5.2.1-1, {W2_LINK}'), entry(2, RECORDED, 'screens/FORMAT.md'))
@@ -605,6 +659,221 @@ class CheckTest(VaultCase):
         self.assertEqual((old.next, old.entries), (None, {}))
         self.assertEqual(decisions.parse_log(''), decisions.Log([''], None, {}))
         self.assertEqual(self.kinds(LOG_HEAD, OLD_HEAD, OLD_HEAD), [])
+
+    def test_accepts_deferred_forms(self):
+        text = log_text(3, entry(1, DEFERRED), entry(2, f'{DEFERRED} · applied 2026-11-14', title='Two'))
+        self.assertEqual(self.kinds(text, text, LOG_HEAD), [])
+        for status in ('recorded 2026-11-12 · applied 2026-11-13 · deferred 2026-11-14', 'recorded 2026-11-12 · deferred',
+                       'deferred 2026-11-13'):
+            self.assertEqual(self.kinds(log_text(2, entry(1, status))), ['malformed-status'], status)
+
+    def test_deferred_in_head_text_unchanged(self):
+        head = log_text(2, entry(1, DEFERRED))
+        self.assertEqual(self.kinds(head.replace('without proof', 'with no proof'), head), ['edited'])
+        self.assertEqual(self.kinds(head.replace(DEFERRED, f'{DEFERRED} · applied 2026-11-14'), head), [])  # applied
+        self.assertEqual(self.kinds(head.replace(DEFERRED, RECORDED), head), [])  # undeferred
+        self.assertEqual(self.kinds(head, log_text(2, entry(1, RECORDED))), [])  # deferred since HEAD
+        named = log_text(2, entry(1, DEFERRED, 'nothing.here'))
+        self.assertEqual(self.kinds(named, named), ['unknown-name'])  # its names still resolve, as a recorded one's
+
+
+class DisagreedTest(VaultCase):
+    """Automated: disagreed, confirm, overrule (the record's Part B › "The log and its tool")."""
+
+    def setUp(self):
+        super().setUp()
+        decisions.add_decision(self.vault, self.log_now(), 'Incidents need a photo', 'C.', 'D.', disagreed=True,
+                               today='2026-11-12')
+        decisions.add_decision(self.vault, self.log_now(), 'The owner rules otherwise', 'C2.', 'D2.', today='2026-11-12')
+
+    def test_add_decision_disagreed_writes_disagreed(self):
+        self.assertEqual(self.log_now().entries[1].fields['Automated'], 'disagreed')
+
+    def test_automated_and_disagreed_together_are_refused(self):
+        with self.assertRaisesRegex(decisions.RefError, 'automated or disagreed'):
+            decisions.add_decision(self.vault, self.log_now(), 'T', 'C.', 'D.', automated=True, disagreed=True)
+
+    def test_confirm_turns_disagreed_into_false(self):
+        decisions.confirm_decision(self.vault, self.log_now(), 1)
+        e = self.log_now().entries[1]
+        self.assertEqual((e.fields['Automated'], e.fields['Status']), ('false', RECORDED))
+
+    def test_confirm_refuses_an_entry_not_disagreed(self):
+        before = self.vault.text(decisions.LOG)
+        with self.assertRaisesRegex(decisions.RefError, 'not disagreed'):
+            decisions.confirm_decision(self.vault, self.log_now(), 2)
+        with self.assertRaisesRegex(decisions.RefError, 'no such entry'):
+            decisions.confirm_decision(self.vault, self.log_now(), 9)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+
+    def test_overrule_marks_the_old_entry(self):
+        decisions.overrule_decision(self.vault, self.log_now(), 1, 2)
+        self.assertEqual(self.log_now().entries[1].fields['Automated'], 'overruled by 2')
+
+    def test_overrule_takes_an_agreed_entry_too(self):
+        decisions.add_decision(self.vault, self.log_now(), 'Agreed', 'C3.', 'D3.', automated=True, today='2026-11-12')
+        decisions.add_decision(self.vault, self.log_now(), 'Owner', 'C4.', 'D4.', today='2026-11-12')
+        decisions.overrule_decision(self.vault, self.log_now(), 3, 4)
+        self.assertEqual(self.log_now().entries[3].fields['Automated'], 'overruled by 4')
+
+    def test_overrule_refuses_an_owner_entry_an_unknown_or_an_earlier_one(self):
+        before = self.vault.text(decisions.LOG)
+        with self.assertRaisesRegex(decisions.RefError, 'disagreed or true'):
+            decisions.overrule_decision(self.vault, self.log_now(), 2, 1)
+        with self.assertRaisesRegex(decisions.RefError, 'no such entry'):
+            decisions.overrule_decision(self.vault, self.log_now(), 1, 9)
+        with self.assertRaisesRegex(decisions.RefError, 'recorded after'):
+            decisions.overrule_decision(self.vault, self.log_now(), 1, 1)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+
+    def test_overrule_refuses_an_m_that_is_not_the_owner_s_ruling(self):
+        decisions.add_decision(self.vault, self.log_now(), 'Agreed later', 'C3.', 'D3.', automated=True, today='2026-11-12')
+        decisions.add_decision(self.vault, self.log_now(), 'Disagreed later', 'C4.', 'D4.', disagreed=True, today='2026-11-12')
+        before = self.vault.text(decisions.LOG)
+        for m in (3, 4):
+            with self.assertRaisesRegex(decisions.RefError, "not the owner's ruling"):
+                decisions.overrule_decision(self.vault, self.log_now(), 1, m)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+
+    def test_pending_names_a_disagreed_entry(self):
+        lines = decisions.pending(self.log_now(), {})
+        self.assertIn('PENDING: decision 1 disagreed, not ruled: Incidents need a photo', lines)
+        self.assertEqual(decisions.disagreed(self.log_now()), ['PENDING: decision 1 disagreed, not ruled: Incidents need a photo'])
+
+
+class DisagreedCheckTest(KindsMixin, VaultCase):
+    def test_the_new_values_are_well_formed(self):
+        for value in ('disagreed', 'overruled by 2'):
+            self.assertEqual(self.kinds(log_text(3, entry(1, automated=value), entry(2, title='Two'))), [], value)
+        self.assertEqual(self.kinds(log_text(2, entry(1, automated='overruled by'))), ['malformed-entry'])
+
+    def test_an_overrule_names_a_later_entry_of_the_log(self):
+        self.assertEqual(self.kinds(log_text(3, entry(1, automated='overruled by 9'), entry(2, title='Two'))),
+                         ['dangling-overrule'])
+        self.assertEqual(self.kinds(log_text(3, entry(1, title='One'), entry(2, automated='overruled by 1'))),
+                         ['dangling-overrule'])
+        self.assertEqual(self.kinds(log_text(3, entry(1, automated='overruled by 1'), entry(2, title='Two'))),
+                         ['dangling-overrule'])
+
+    def test_a_committed_entry_may_go_from_disagreed_to_false_or_overruled_only(self):
+        head = log_text(3, entry(1, automated='disagreed'), entry(2, title='Two'))
+        for value in ('false', 'overruled by 2'):
+            self.assertEqual(self.kinds(head.replace('**Automated.** disagreed', f'**Automated.** {value}'), head), [], value)
+        self.assertEqual(self.kinds(head.replace('**Automated.** disagreed', '**Automated.** true'), head), ['edited'])
+        agreed = log_text(3, entry(1, automated='true'), entry(2, title='Two'))
+        self.assertEqual(self.kinds(agreed.replace('**Automated.** true', '**Automated.** overruled by 2'), agreed), [])
+        self.assertEqual(self.kinds(agreed.replace('**Automated.** true', '**Automated.** false'), agreed), ['edited'])
+
+
+class Defer(VaultCase):
+    """The third Status form, recorded · deferred: a ruling left for a later branch (the record's "The deferral of
+    rulings")."""
+
+    def setUp(self):
+        super().setUp()
+        decisions.add_decision(self.vault, self.log_now(), 'Incidents need a photo', 'C.', 'D.', today='2026-11-20')
+
+    def test_recorded_becomes_deferred(self):
+        decisions.defer_decision(self.vault, self.log_now(), 1, today='2026-11-21')
+        e = self.log_now().entries[1]
+        self.assertEqual((e.status, e.fields['Status']), (decisions.Status.DEFERRED, 'recorded 2026-11-20 · deferred 2026-11-21'))
+        self.assertEqual([l.split('.**')[0] for l in e.body if l], ['**Context', '**Decision', '**Automated', '**Status'])
+
+    def test_refuses_applied_and_deferred(self):
+        decisions.defer_decision(self.vault, self.log_now(), 1)
+        decisions.add_decision(self.vault, self.log_now(), 'Two', 'C2.', 'D2.')
+        decisions.apply_decision(self.vault, self.log_now(), 2, [])
+        before = self.vault.text(decisions.LOG)
+        with self.assertRaisesRegex(decisions.RefError, 'already deferred'):
+            decisions.defer_decision(self.vault, self.log_now(), 1)
+        with self.assertRaisesRegex(decisions.RefError, 'already applied'):
+            decisions.defer_decision(self.vault, self.log_now(), 2)
+        with self.assertRaisesRegex(decisions.RefError, 'no such entry'):
+            decisions.defer_decision(self.vault, self.log_now(), 9)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+
+    def test_refuses_overruling_target(self):
+        self.write(decisions.LOG, log_text(3, entry(1, automated='overruled by 2'), entry(2, title='The owner rules otherwise')))
+        self.vault = decisions.Vault(self.docs)
+        before = self.vault.text(decisions.LOG)
+        with self.assertRaisesRegex(decisions.RefError, 'overrules 1'):
+            decisions.defer_decision(self.vault, self.log_now(), 2)
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+
+
+class Undefer(VaultCase):
+    def setUp(self):
+        super().setUp()
+        self.write(decisions.LOG, log_text(2, entry(1, DEFERRED, title='One')))
+        self.vault = decisions.Vault(self.docs)
+
+    def test_back_to_recorded(self):
+        decisions.undefer_decision(self.vault, self.log_now(), 1, parse(1))
+        e = self.log_now().entries[1]
+        self.assertEqual((e.status, e.fields['Status']), (decisions.Status.RECORDED, RECORDED))
+        with self.assertRaisesRegex(decisions.RefError, 'not deferred'):
+            decisions.undefer_decision(self.vault, self.log_now(), 1, None)
+        with self.assertRaisesRegex(decisions.RefError, 'no such entry'):
+            decisions.undefer_decision(self.vault, self.log_now(), 9, None)
+
+    def test_refused_when_main_holds_it_deferred(self):
+        before = self.vault.text(decisions.LOG)
+        with self.assertRaisesRegex(decisions.RefError, 'main holds 1 deferred'):
+            decisions.undefer_decision(self.vault, self.log_now(), 1, parse(2, entry(1, DEFERRED, title='One')))
+        self.assertEqual(self.vault.text(decisions.LOG), before)
+        # main holding it recorded, or another decision deferred under its id, leaves the branch's deferral its own
+        decisions.undefer_decision(self.vault, self.log_now(), 1, parse(2, entry(1, DEFERRED, title='Other')))
+        self.assertEqual(self.log_now().entries[1].status, decisions.Status.RECORDED)
+        decisions.defer_decision(self.vault, self.log_now(), 1)
+        decisions.undefer_decision(self.vault, self.log_now(), 1, parse(2, entry(1, RECORDED, title='One')))
+        self.assertEqual(self.log_now().entries[1].status, decisions.Status.RECORDED)
+
+
+class ApplyDeferred(VaultCase):
+    def test_keeps_history(self):
+        decisions.add_decision(self.vault, self.log_now(), 'Incidents need a photo', 'C.', 'D.', today='2026-11-12')
+        decisions.defer_decision(self.vault, self.log_now(), 1, today='2026-11-13')
+        decisions.apply_decision(self.vault, self.log_now(), 1, ['W2'], today='2026-11-14')
+        e = self.log_now().entries[1]
+        self.assertEqual((e.status, e.fields['Status']),
+                         (decisions.Status.APPLIED, 'recorded 2026-11-12 · deferred 2026-11-13 · applied 2026-11-14'))
+        self.assertEqual(e.fields['Affected'], W2_LINK)
+        with self.assertRaisesRegex(decisions.RefError, 'already applied'):
+            decisions.apply_decision(self.vault, self.log_now(), 1, [])
+        with self.assertRaisesRegex(decisions.RefError, 'already applied'):
+            decisions.defer_decision(self.vault, self.log_now(), 1)
+
+
+class DeferredAcrossRebase(unittest.TestCase):
+    """A deferred entry meets a rebase (Review Focus 4): resolve and renumber treat it as a recorded one."""
+    one = entry(1, APPLIED, title='One', context='One.')
+    a2 = entry(2, DEFERRED, title='Cash is counted twice', context='A.')
+    b2 = entry(2, DEFERRED, title='Incidents need a photo', context='B.')
+
+    def heads(self, text):
+        return [(e.n, e.title, e.status.value) for e in decisions.parse_log(text).order]
+
+    def test_resolve_keeps_both_sides_deferred_entries(self):
+        text, said = decisions.resolve_log(log_text(2, self.one), log_text(3, self.one, self.a2), log_text(3, self.one, self.b2))
+        self.assertEqual(self.heads(text), [(1, 'One', 'applied'), (2, 'Cash is counted twice', 'deferred'),
+                                            (2, 'Incidents need a photo', 'deferred')])
+        self.assertEqual(said, {'main': 2, 'branch': [2], 'dropped': []})
+
+    def test_resolve_takes_the_commit_s_deferral(self):
+        recorded = self.b2.replace(DEFERRED, RECORDED)
+        base = log_text(3, self.one, recorded)
+        ours = log_text(4, self.one, recorded, entry(3, APPLIED, title='M', context='M.'))
+        text, _ = decisions.resolve_log(base, ours, log_text(3, self.one, self.b2))
+        self.assertEqual(self.heads(text), [(1, 'One', 'applied'), (2, 'Incidents need a photo', 'deferred'), (3, 'M', 'applied')])
+
+    def test_renumber_moves_a_deferred_id_with_its_status(self):
+        main = parse(3, self.one, self.a2)
+        lines, _, moved, dropped = decisions.renumber(parse(3, self.one, self.a2, self.b2), main, {})
+        text = '\n'.join(lines).rstrip('\n') + '\n'
+        self.assertEqual((text, moved, dropped), (log_text(4, self.one, self.a2, self.b2.replace('### 2 ', '### 3 ')), [(2, 3)], []))
+        self.assertEqual(self.heads(text), [(1, 'One', 'applied'), (2, 'Cash is counted twice', 'deferred'),
+                                            (3, 'Incidents need a photo', 'deferred')])
+        self.assertEqual(decisions.trim(decisions.parse_log(text), main)[1], 1)  # main's deferred 2 stays
 
 
 class CliTest(unittest.TestCase):
@@ -858,6 +1127,44 @@ class GitInputsTest(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
         self.assertIn('no rebase is in progress', r.stderr)
+
+    def test_defer_list_and_undefer_until_main_holds_it_deferred(self):
+        def tool(*args, expect=0):
+            r = subprocess.run([sys.executable, '-I', os.path.join(HERE, 'decisions.py'), '--docs', self.docs, *args],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, expect, r.stderr + r.stdout)
+            return r.stdout + r.stderr
+        tool('add-decision', '--title', 'Incidents need a photo', '--context', 'C.', '--decision', 'D.')
+        self.assertEqual(tool('defer', '--id', '1'), '1\n')
+        self.assertEqual(tool('list'), '1  deferred  Automated: false  Incidents need a photo\n')
+        self.assertIn('already deferred', tool('defer', '--id', '1', expect=2))
+        self.assertNotIn('decision 1', tool('pending', expect=1))
+        self.assertEqual(tool('undefer', '--id', '1'), '1\n')
+        self.assertEqual(tool('defer', '--id', '1'), '1\n')
+        self.commit('branch: 1 deferred')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')  # the branch landed on main
+        self.assertIn('main holds 1 deferred', tool('undefer', '--id', '1', expect=2))
+        self.git('update-ref', '-d', 'refs/remotes/origin/main')
+        self.assertIn('no origin/main', tool('undefer', '--id', '1', expect=2))
+
+    def test_list_branch_leaves_out_mains_entries_but_one_the_branch_acted_on(self):
+        def tool(*args, expect=0):
+            r = subprocess.run([sys.executable, '-I', os.path.join(HERE, 'decisions.py'), '--docs', self.docs, *args],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, expect, r.stderr + r.stdout)
+            return r.stdout + r.stderr
+        kept = entry(1, DEFERRED, title='Kept for later', context='K.')
+        taken = entry(2, DEFERRED, title='Taken in', context='T.')
+        self.put('reviews/design-decision-log.md', log_text(3, kept, taken))
+        self.commit('main holds two deferred entries')
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        self.put('reviews/design-decision-log.md', log_text(3, kept, taken.replace(DEFERRED, DEFERRED + ' · applied 2026-11-14')))
+        tool('add-decision', '--title', 'Recorded here', '--context', 'H.', '--decision', 'D.')
+        self.assertEqual(len(tool('list').splitlines()), 3)
+        self.assertEqual(tool('list', '--branch'), '2  applied  Automated: false  Taken in\n'
+                                                   '3  recorded  Automated: false  Recorded here\n')
+        self.git('update-ref', '-d', 'refs/remotes/origin/main')
+        self.assertIn('no origin/main', tool('list', '--branch', expect=2))
 
     def test_no_origin_main_is_an_error(self):
         self.git('update-ref', '-d', 'refs/remotes/origin/main')

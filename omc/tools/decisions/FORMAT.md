@@ -1,8 +1,8 @@
 # The log
 
 `paths.decision_log` of `omc/config.yaml` (`docs/decision-log.md` by default) is the one decision log: one file, one flat list of entries, no sections. It is
-scratch space: an entry is recorded when the owner rules, applied when the protected documents carry it, and trimmed once
-it is applied on `<base>`. It is written only through `just decisions` (the tool below).
+scratch space: an entry is recorded when the owner rules, applied when the protected documents carry it (or deferred to
+a later branch, below), and trimmed once it is applied on `<base>`. It is written only through `just decisions` (the tool below).
 
 ```
 # Design decision log
@@ -34,13 +34,27 @@ not written. Its number is its id everywhere: a `Source` line, a commit message,
   and `remove` drops it. The tool links every story id and scene id mentioned in them (outside code spans and links).
 - `Automated` is `true` for a decision no owner ruling was made for: settled by the existing docs (a rule carried into a
   page that lagged), or by the agreement of `/answer-doubt`'s two answers from `/design` on, its `Context` then saying
-  it was ruled by that agreement; `false` for the owner's ruling, whether in their own words or as a picked option they
-  confirmed. Always written; `list` shows the owner every entry they did not rule.
+  it was ruled by that agreement (`add-decision --automated`); `false` for the owner's ruling, whether in their own
+  words or as a picked option they confirmed (`add-decision`, or `confirm` of a `disagreed` entry); `disagreed` for a
+  ruling acted on from `/design` on although `/answer-doubt`'s two answers disagreed, not yet ruled by the owner
+  (`add-decision --disagreed`; its `Context` holds the question, both answers and that the independent agent
+  disagreed); `overruled by <m>` for a `disagreed` or `true` entry the owner's ruling `<m>`, a new entry recorded after
+  it with `Automated` `false`, replaced (`overrule`). Always written; `list` shows the owner every entry they did not
+  rule. Once committed, `Automated` changes only by the owner's ruling after the run: `disagreed` to `false`, and
+  `disagreed` or `true` to `overruled by <m>`.
 - `Affected` names what the decision reaches, in the names below. At recording it is the best guess;
   `apply-decision` replaces it with the real set. An entry applied with nothing to change has no `Affected`.
 - `Source` is where the decision came from: a question of a question file, an item of a review file, a section of a
   record, always a heading, never only the file.
-- `Status` is `recorded <date>` at recording and `recorded <date> · applied <date>` once applied: the two forms.
+- `Status` is `recorded <date>` at recording and `recorded <date> · applied <date>` once applied. A ruling made after
+  design may be deferred, the owner's call: `recorded <date> · deferred <date>` (`defer`), left on `<base>` unapplied
+  for a later branch, and `recorded <date> · deferred <date> · applied <date>` once that branch applies it, the
+  history kept. The four forms; `undefer` takes a deferred entry back to `recorded <date>` while `<base>` does not hold
+  it deferred. A deferred entry backs no page and is not pending; it stays in the log, through every trim, until it
+  is applied on `<base>`. One found obsolete later is withdrawn by a new entry that says so, and the old one applied
+  with nothing to change (`apply-decision --affected ""`): there is no fourth state.
+- **Never deferred: an overruling entry.** The entry `<m>` that another entry's `**Automated.** overruled by <m>`
+  names undoes work this branch did and is applied in it; `defer` refuses it.
 
 Technical and product decisions sit side by side; what tells them apart is what `Affected` names.
 
@@ -94,26 +108,33 @@ matches the decision's words; that is the "decisions carried" review's reading (
 
 # Pending, trim and check
 
-- `pending`: one line per recorded entry not applied, and per open question of a question file of `paths.questions`
-  (below); none means everything recorded is carried through. `pending --questions` gives the open questions alone:
+- `pending`: one line per recorded entry not applied (a deferred entry is none: it waits for a later branch), per entry
+  still `Automated: disagreed` (`PENDING: decision <n> disagreed, not ruled: <title>`), and per open question of a
+  question file of `paths.questions` (below); none means everything recorded is carried through and ruled.
+  `pending --questions` gives the open questions alone:
   before implementation the recorded entries wait, on purpose (`# The integrity check`).
 - `trim` drops every entry applied on `<base>`: applied at the merge-base, or held by an earlier commit of `<base>`'s
   log and trimmed since; the header, `Next` included, stays, and so does every entry recorded or applied only on the
-  branch. An entry is `<base>`'s only when `<base>`'s log holds or held the same id with the same title and `Context`
-  (link-free); another decision under the same id is the branch's own (below, "Two branches at once"), which `trim`
-  keeps and `guard` counts as applied on the branch.
+  branch, and every deferred entry (deferred on `<base>` too: it stays until a branch applies it and lands). An entry is
+  `<base>`'s only when `<base>`'s log holds or held the same id with the same title and `Context` (link-free); another
+  decision under the same id is the branch's own (below, "Two branches at once"), which `trim` keeps and `guard` counts
+  as applied on the branch.
 - `check`: the header holds `Next:`; ids are unique, ascending and below `Next`; no entry holds an id that `<base>`'s log
   gives or gave another decision (`id-on-main`; a `duplicate-id` and an `id-on-main` both name the rebase step below);
   no entry is one `<base>` applied and trimmed since (`trimmed-on-main`: a rebase kept it from the branch's side;
-  `renumber` at the rebase's stop, or `trim`, drops it); every entry has `Context`, `Decision` and `Automated` (`true`
-  or `false`), no field twice, and a `Status` in one of the two forms. An entry new on the branch or still recorded in
-  `HEAD`: every link resolves or reaches a protected document deleted on the branch (a link pinned to a commit, title
-  `git:<sha>`, is `links-check`'s) and every `Affected` name resolves. An entry `HEAD` has: recorded there, its title,
+  `renumber` at the rebase's stop, or `trim`, drops it); every entry has `Context`, `Decision` and `Automated` (`true`,
+  `false`, `disagreed` or `overruled by <n>`), no field twice, and a `Status` in one of the four forms; an
+  `overruled by <m>` names a later entry, `m` above the entry's id and held by the log or by `<base>`'s
+  (`dangling-overrule`). An entry new on the branch or still recorded or deferred in `HEAD`: every link resolves or
+  reaches a protected document deleted on the branch (a link pinned to a commit, title `git:<sha>`, is
+  `links-check`'s) and every `Affected` name resolves. An entry `HEAD` has: recorded or deferred there, its title,
   `Context`, `Decision`, `Automated` and `Source` are unchanged, link-free; applied there, its whole link-free text is
-  unchanged. An entry `HEAD` has and the working tree lacks must be applied on `<base>`: only a trim removes. An entry
-  `renumber` moved is followed to its new id by its title, and compared with its decision references' numbers masked; an
-  id `HEAD` holds twice (a rebase's leftover) is left to `renumber`. An entry applied in `HEAD` is never re-resolved,
-  since a later branch may delete a page it names.
+  unchanged. In both, `Automated` may take the owner's ruling after the run (`confirm`: `disagreed` to `false`;
+  `overrule`: `disagreed` or `true` to `overruled by <m>`) and no other change. An entry `HEAD` has and the working
+  tree lacks must be applied on `<base>`: only a trim removes. An entry `renumber` moved is followed to its new id by
+  its title, and compared with its decision references' numbers masked (an `overruled by <m>` is one, and `Automated`
+  may follow `m` to its new id); an id `HEAD` holds twice (a rebase's leftover) is left to `renumber`. An entry applied
+  in `HEAD` is never re-resolved, since a later branch may delete a page it names.
 
 ## Two branches at once
 
@@ -126,7 +147,7 @@ The rebase step:
    from git's three sides (the common ancestor, `<base>`'s side as the rebase has built it so far, the commit being
    replayed), never by hand: `<base>`'s header and entries first, then the entries only the commit holds; an entry
    both sides hold is never copied twice, and takes the side that changed it (the commit's when it applied it); an
-   entry one side trimmed stays trimmed. It stages the log, and refuses outside a rebase, on a log not in conflict,
+   entry one side trimmed stays trimmed; a deferred entry is a recorded one here. It stages the log, and refuses outside a rebase, on a log not in conflict,
    and on an entry both sides changed differently (that one is the owner's question). Ids may stand twice at this
    point. If the log was the stop's only conflict, `git rebase --continue`; any other conflicted file is the
    owner's.
@@ -134,19 +155,21 @@ The rebase step:
    in progress: every commit of the branch has to be in what it rewrites). It first validates the base: `<base>`'s log has
    unique ids, in order, below its `Next`, and every reference to a decision anywhere on `<base>` (`decision 41`,
    `decisions 12 and 35`, `decisions 38, 41, 42` (a comma list only after the plural: `decision 20, 4 shards` names
-   one), a link to an entry's heading) on `<base>`'s lines, as they stand on the branch, names an id `<base>`'s log holds or
-   held; a base that does not validate is refused with every bad reference listed, and nothing is renumbered against it
-   until it is fixed (on the branch, as any other line, or on `<base>`). The branch's own entries are those `<base>`'s log
-   never held as the same decision: not at the merge-base, and not at any earlier commit of `<base>`, the branch's old
-   fork point included. They take the ids from `<base>`'s `Next` on, in file order, after `<base>`'s, and `Next` follows
-   them; an entry `<base>` held and trimmed since goes (`decision <n> dropped: applied on main and trimmed there`). Every
-   reference to an own entry is rewritten to its new id: in the own entries' text, and in every line the branch added
-   since the merge-base, in any file (a question file's status, a record, a code comment); a line `<base>` holds is never
-   touched, so it keeps naming `<base>`'s decision. A reference the branch wrote names an id its log held when it was
-   written, so one naming an own entry's old id means that entry. It refuses a reference the branch wrote that names no
-   decision of `<base>`'s and no entry of the branch's, and checks its own result (ids sound, every reference naming what
-   it named before) before it writes. It prints `decision <old> is now <new>` per moved entry and
-   `<k> entries renumbered`; it refuses a log that still holds conflict markers, and changes nothing when nothing moved.
+   one), a link to an entry's heading, an entry's `**Automated.** overruled by <m>`) on `<base>`'s lines, as they stand
+   on the branch, names an id `<base>`'s log holds or held; a base that does not validate is refused with every bad
+   reference listed, and nothing is renumbered against it until it is fixed (on the branch, as any other line, or on
+   `<base>`). The branch's own entries are those `<base>`'s log never held as the same decision: not at the merge-base,
+   and not at any earlier commit of `<base>`, the branch's old fork point included. They take the ids from `<base>`'s
+   `Next` on, in file order, after `<base>`'s, and `Next` follows them (a deferred one too, its `Status` intact: it is
+   renumbered on a branch until it lands on `<base>`); an entry `<base>` held and trimmed since goes (`decision <n>
+   dropped: applied on main and trimmed there`). Every reference to an own entry is rewritten to its new id: in the own
+   entries' text, and in every line the branch added since the merge-base, in any file (a question file's status, a
+   record, a code comment); a line `<base>` holds is never touched, so it keeps naming `<base>`'s decision. A reference
+   the branch wrote names an id its log held when it was written, so one naming an own entry's old id means that entry.
+   It refuses a reference the branch wrote that names no decision of `<base>`'s and no entry of the branch's, and checks
+   its own result (ids sound, every reference naming what it named before) before it writes. It prints
+   `decision <old> is now <new>` per moved entry and `<k> entries renumbered`; it refuses a log that still holds
+   conflict markers, and changes nothing when nothing moved.
 3. `just decisions check`, then commit the log and every file it changed (`Decisions renumbered after the rebase`).
 
 A log conflict is resolved by this step alone: `resolve` at each stop, then `renumber` once the rebase is done;
@@ -190,23 +213,25 @@ and the vault's links and nothing else: no build, no test, no gate stage. Every 
 |---|---|---|
 | the log is sound: `check` | `decisions check` | both |
 | no question file holds an open question: `pending --questions` | `questions` | implementation, without `--defer-questions` |
+| no entry is left `Automated: disagreed`: the disagreed half of `pending` | `disagreed` | implementation, without `--defer-questions` |
 | every entry of the branch has its row in the branch's record | `record` | both |
 | the vault's links hold: `just links-check` (a run that did not happen is `did not run: …`, never `OK`) | `links-check` | both |
 | every changed protected document is named by an entry applied on the branch: `guard` | `guard` | both |
-| nothing recorded is left unapplied: the recorded half of `pending` | `pending` | implementation |
+| nothing recorded is left unapplied: the recorded half of `pending` (a deferred entry passes, so a branch is pushed with deferred entries) | `pending` | implementation |
 
-In design the recorded entries wait, on purpose; so do the open questions, in design and with `--defer-questions`
-(`/implement`'s `decisions` step): they wait for the push gate, the verify terminal's run of the check (and a `pre-push`
-hook, where the project installs one), which pass neither flag, so nothing is pushed with a question open
-(`--defer-questions` with `--phase design` is accepted and changes nothing). The guard runs in both phases, so there any
-changed protected document is `UNBACKED`. The entries of the branch are those `<base>`'s log never held as the same
-decision (an entry `<base>` applied, still in the log before a trim, needs no row). The branch's records are the
-`<paths.specs>*-design.md` files added since the merge-base, tracked or untracked; their rows are read together, and a
-branch without one passes the `record` check with nothing to compare. A row is a table row inside a section headed, at
-any level, "Decisions and the pages they change", outside code fences, whose first cell begins `decision <n>` (a
-backtick before it allowed); a later cell (`replaces decision <m>`) never counts. That is the form `renumber` rewrites
-in every line the branch added, so a row follows its entry to a new id. Whether an entry reached the pages its row
-planned is not checked here: that is the "decisions carried" review's reading.
+In design the recorded entries wait, on purpose; so do the open questions and the disagreed entries, in design and
+with `--defer-questions` (`/implement`'s `decisions` step and the verify terminal's run of the check, since the owner
+rules them after their screenshot review, which follows `verify`): they wait for the push gate, `/audit`'s push (and a
+`pre-push` hook, where the project installs one), which pass neither flag, so nothing is pushed with a question open or
+an entry the owner has not ruled (`--defer-questions` with `--phase design` is accepted and changes nothing). The guard
+runs in both phases, so there any changed protected document is `UNBACKED`. The entries of the branch are those
+`<base>`'s log never held as the same decision (an entry `<base>` applied, still in the log before a trim, needs no
+row). The branch's records are the `<paths.specs>*-design.md` files added since the merge-base, tracked or untracked;
+their rows are read together, and a branch without one passes the `record` check with nothing to compare. A row is a
+table row inside a section headed, at any level, "Decisions and the pages they change", outside code fences, whose
+first cell begins `decision <n>` (a backtick before it allowed); a later cell (`replaces decision <m>`) never counts.
+That is the form `renumber` rewrites in every line the branch added, so a row follows its entry to a new id. Whether an
+entry reached the pages its row planned is not checked here: that is the "decisions carried" review's reading.
 
 # The tool
 
@@ -215,24 +240,28 @@ planned is not checked here: that is the "decisions carried" review's reading.
 back whole; there is no other store. `--docs <dir>` before the subcommand points it at another vault, for a dry run on a
 copy (outside a git repository, `guard`, `trim` and `check` refuse, and no page counts as deleted). It reads git in one
 place only (the merge-base, the log at `HEAD` and at the merge-base, the log at every earlier commit of `<base>` that
-changed it, the changed protected documents; for `update` and `remove`, the entry headings every commit of `HEAD`'s
-history added to the log); every other function takes texts. A refusal prints `error: <why>` and exits 2, the log
-untouched; so does a missing `origin/<base>` (`git fetch origin`).
+changed it, the changed protected documents; for `undefer`, the log at `origin/<base>`'s tip; for `update` and
+`remove`, the entry headings every commit of `HEAD`'s history added to the log); every other function takes texts. A
+refusal prints `error: <why>` and exits 2, the log untouched; so does a missing `origin/<base>` (`git fetch origin`).
 
 | Subcommand | Does |
 |---|---|
-| `add-decision --title T --context C --decision D [--automated] [--affected "a, b"] [--source "<vault path>#<heading>"]` | appends `### <Next>` with `Status recorded <today>`, advances `Next`, prints the id; refuses a missing title, context or decision, a name or source that resolves to nothing, and a header without `Next` |
-| `apply-decision --id n --affected "a, b"` | `--affected` required, the real set; `""` is applied with nothing to change (the field dropped); sets `recorded <date> · applied <today>`; refuses an unknown id and an entry already applied |
-| `update n [--title T] [--context C] [--decision D] [--automated true\|false] [--affected "a, b"] [--source "…"]` | rewrites the fields given of an entry no commit ever held, as `add-decision` writes them (`--affected ""` and `--source ""` drop the field); the rest and the `Status` stay; refuses an entry a commit of `HEAD`'s history ever held, by its id or its title |
+| `add-decision --title T --context C --decision D [--automated \| --disagreed] [--affected "a, b"] [--source "<vault path>#<heading>"]` | appends `### <Next>` with `Status recorded <today>` and `Automated` `true` (`--automated`), `disagreed` (`--disagreed`) or `false`, advances `Next`, prints the id; refuses both flags at once, a missing title, context or decision, a name or source that resolves to nothing, and a header without `Next` |
+| `apply-decision --id n --affected "a, b"` | `--affected` required, the real set; `""` is applied with nothing to change (the field dropped); sets `recorded <date> · applied <today>`, or `recorded <date> · deferred <date> · applied <today>` on a deferred entry; refuses an unknown id and an entry already applied |
+| `defer --id n` | the owner deferred recorded entry `n` to `<base>`, for a later branch: sets `recorded <date> · deferred <today>`; prints the id; refuses an unknown id, an entry applied or deferred, and an overruling entry (one another entry's `**Automated.** overruled by n` names) |
+| `undefer --id n` | takes deferred entry `n` back to `recorded <date>`; prints the id; refuses an unknown id, an entry not deferred, and one `origin/<base>`'s log holds deferred (the same id and title: a deferral on `<base>` ends only by applying it on a branch) |
+| `confirm n` | the owner ruled a `disagreed` entry as it stands: its `Automated` becomes `false`; prints the id; refuses an unknown id and an entry not `disagreed` |
+| `overrule n --by m` | the owner's ruling `m`, a new entry recorded after `n`, replaced `n`: its `Automated` becomes `overruled by m`; prints the id; refuses an unknown `n` or `m`, an entry not `disagreed` or `true`, `m` not above `n`, and an `m` that is not the owner's ruling (its `Automated` not `false`) |
+| `update n [--title T] [--context C] [--decision D] [--automated true\|false] [--affected "a, b"] [--source "…"]` | rewrites the fields given of an entry no commit ever held, as `add-decision` writes them (`--affected ""` and `--source ""` drop the field); the rest and the `Status` stay; refuses an entry a commit of `HEAD`'s history ever held, by its id or its title, and `--automated` on an entry whose `Automated` is `disagreed` or `overruled by <m>` (only `confirm` and `overrule` move those) |
 | `remove n` | drops an entry no commit ever held and lowers `Next` to what the remaining entries and `HEAD`'s log allow, never below `HEAD`'s `Next`; refuses an entry ever committed and one any file still names (`decision n`, a link to its heading) outside the entry itself |
 | `show n [n…]` | the entries in full |
-| `list` | every entry, one line each: `n  status  Automated: true\|false  title` |
-| `pending [--questions]` | `OK`, or one `PENDING:` line per recorded entry and per open question (`--questions`: the open questions alone), exit 1 |
+| `list` | every entry, one line each: `n  status  Automated: <value>  title`, the status `recorded`, `deferred` or `applied`, the value `true`, `false`, `disagreed` or `overruled by <m>`; `--branch`, only the branch's entries: those `<base>`'s log (`origin/<base>`'s merge-base, with what `<base>` trimmed) never held as the same decision, and `<base>`'s ones whose status the branch changed (a deferred entry it took in and applied), never `<base>`'s deferred entries left for a later branch |
+| `pending [--questions]` | `OK`, or one `PENDING:` line per recorded entry (never a deferred one), per `disagreed` entry and per open question (`--questions`: the open questions alone), exit 1 |
 | `guard` | `OK`, or one `UNBACKED:` line per changed protected document no entry applied on the branch names, exit 1 |
-| `trim` | drops the entries applied at the merge-base; prints `<k> entries trimmed` |
+| `trim` | drops the entries applied at the merge-base, never a deferred one; prints `<k> entries trimmed` |
 | `resolve` | at a rebase's stop where the log conflicts: settles it entry by entry from git's three sides (`<base>`'s entries, then the commit's own; never one twice) and stages it ("Two branches at once"); prints `decision <n> dropped: …` per trim kept and `resolved: …`; refuses outside a rebase and on an entry both sides changed |
 | `renumber` | after a rebase's log conflict, resolved to `<base>`'s entries and the branch's: the branch's own entries take the ids from `<base>`'s `Next` on, an entry `<base>` trimmed goes, and every reference to them the branch wrote follows, after the rebase and against a base that validates ("Two branches at once"); prints `decision <n> dropped: …` per entry dropped, `decision <old> is now <new>` per moved entry and `<k> entries renumbered` |
-| `check` | `OK`, or `PROBLEM: <the log's path in the vault>:<line>: <kind>: <detail>` lines, exit 1; the kinds `header`, `duplicate-id`, `id-on-main`, `trimmed-on-main`, `out-of-order`, `id-not-below-next`, `malformed-entry`, `malformed-status`, `dead-link`, `unknown-name`, `edited`, `removed` |
+| `check` | `OK`, or `PROBLEM: <the log's path in the vault>:<line>: <kind>: <detail>` lines, exit 1; the kinds `header`, `duplicate-id`, `id-on-main`, `trimmed-on-main`, `out-of-order`, `id-not-below-next`, `malformed-entry`, `dangling-overrule`, `malformed-status`, `dead-link`, `unknown-name`, `edited`, `removed` |
 
 `check`, `guard` and `pending` run in `just design-integrity-check` (# The integrity check), which the verify terminal
 (`/verify`) runs after each full run of the gate, and a `pre-push` hook may run before a push; never in the check gate.

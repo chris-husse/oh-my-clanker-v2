@@ -54,6 +54,7 @@ FIXTURE = {
 }
 APPLIED = 'recorded 2026-11-12 · applied 2026-11-12'
 RECORDED = 'recorded 2026-11-12'
+DEFERRED = 'recorded 2026-11-12 · deferred 2026-11-13'
 
 
 def write_vault(root, files=FIXTURE):

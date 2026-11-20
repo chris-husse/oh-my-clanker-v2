@@ -2,17 +2,18 @@
 """The mechanical checks of the decisions in one command: the log is sound, every entry of the branch has its row in the
 branch's record, the vault's links hold (the links tool, then the project's `omc/bin/links-check` when it has one),
 every changed guarded page is named by an entry applied on the branch, and (in implementation, the default phase)
-nothing recorded is left unapplied and, without --defer-questions, no question file holds an open question: the
-questions wait for the push gate (verify's step and the pre-push hook pass neither flag; /design passes --phase design,
-/implement's decisions step --defer-questions: from /design on, no question blocks the run); the output and the row's
-form are omc/tools/decisions/FORMAT.md › The integrity check. It reads the log, the record, git and the vault's links;
-no build, no test, no gate stage. Whether an entry reached the pages its row planned is the "decisions carried" review's
-reading, not checked here. Every check but the record's is decisions.py's own function, called in-process; git is read
-only in `branch_records` and through decisions.py (`repo_of`, `git_inputs`, `tree_refs`); every other function takes
-texts. omc/config.yaml's paths place the log, the guarded pages, the question files and the records
-(decisions.configured; pyyaml reads it, so it runs through uv); with no log and no protected page there is nothing to
-check: it prints nothing and exits 0. Run from the repository root: `just design-integrity-check [--phase
-design|implementation] [--defer-questions]` (`--help`)."""
+nothing recorded is left unapplied and, without --defer-questions, no question file holds an open question and no entry
+is left `Automated: disagreed`: the questions and the disagreed entries wait for the push gate (/audit's push and the
+pre-push hook pass neither flag; /design passes --phase design, /implement's decisions step and verify's step
+--defer-questions, since the owner rules them after their screenshot review: from /design on, no question blocks the
+run); the output and the row's form are omc/tools/decisions/FORMAT.md › The integrity check. It reads the log, the
+record, git and the vault's links; no build, no test, no gate stage. Whether an entry reached the pages its row planned
+is the "decisions carried" review's reading, not checked here. Every check but the record's is decisions.py's own
+function, called in-process; git is read only in `branch_records` and through decisions.py (`repo_of`, `git_inputs`,
+`tree_refs`); every other function takes texts. omc/config.yaml's paths place the log, the guarded pages, the question
+files and the records (decisions.configured; pyyaml reads it, so it runs through uv); with no log and no protected page
+there is nothing to check: it prints nothing and exits 0. Run from the repository root: `just design-integrity-check
+[--phase design|implementation] [--defer-questions]` (`--help`)."""
 import argparse
 import os
 import re
@@ -22,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I leaves the script's directory off the path
 import decisions  # noqa: E402
 
-CHECKS = ('decisions check', 'questions', 'record', 'links-check', 'guard', 'pending')
+CHECKS = ('decisions check', 'questions', 'disagreed', 'record', 'links-check', 'guard', 'pending')
 PHASES = ('design', 'implementation')
 SECTION = 'Decisions and the pages they change'
 LINKS_TOOL = 'omc/skills/reconcile-links/tool'   # repo-relative
@@ -76,8 +77,8 @@ def _inner(lines):
 
 
 def integrity(phase, vault, log, head_log, main_log, changes, refs, question_files, records, links, defer_questions=False):
-    """Every problem, `PROBLEM: <check>: <detail>`, in CHECKS order; `pending` in implementation only, `questions` in
-    implementation without defer_questions only, phase one of PHASES (else ValueError). head_log and main_log as
+    """Every problem, `PROBLEM: <check>: <detail>`, in CHECKS order; `pending` in implementation only, `questions` and
+    `disagreed` in implementation without defer_questions only, phase one of PHASES (else ValueError). head_log and main_log as
     decisions.check takes them (main_log: main's log, Inputs.main()); changes as git_inputs gives them; refs as
     tree_refs; question_files as decisions.question_files; records as missing_rows; links as links_lines gives them."""
     if phase not in PHASES:
@@ -86,6 +87,7 @@ def integrity(phase, vault, log, head_log, main_log, changes, refs, question_fil
         'decisions check': _inner(decisions.check(vault, log, head_log, main_log, decisions.deleted(changes), refs)),
         'questions': (decisions.open_questions(question_files)
                       if phase == 'implementation' and not defer_questions else []),
+        'disagreed': decisions.disagreed(log) if phase == 'implementation' and not defer_questions else [],
         'record': missing_rows(branch_entries(log, main_log), records),
         'links-check': links,
         'guard': decisions.guard(vault, changes, log, main_log),
@@ -148,10 +150,10 @@ def main(argv=None):
                                                      'paths.decision_log)')
     parser.add_argument('--phase', choices=PHASES, default='implementation',
                         help='design: the recorded entries and the open questions wait; implementation (the default): '
-                             'nothing recorded is left unapplied, and no question is open')
+                             'nothing recorded is left unapplied, no question is open and no entry disagreed')
     parser.add_argument('--defer-questions', action='store_true',
-                        help='the open questions wait for the push gate (/implement\'s decisions step); '
-                             'verify and the pre-push hook never pass it')
+                        help='the open questions and the disagreed entries wait for the push gate (/implement\'s '
+                             'decisions step, verify\'s step); /audit\'s push and the pre-push hook never pass it')
     args = parser.parse_args(argv)
     try:
         vault = decisions.Vault(decisions.configured(args.docs))
