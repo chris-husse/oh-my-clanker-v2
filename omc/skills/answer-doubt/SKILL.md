@@ -1,6 +1,6 @@
 ---
 name: answer-doubt
-description: "Use whenever you have a design doubt, a question whose answer would change a rule or a protected document, in any flow (a brainstorm, /design, a plan, an implementation task, an audit, a test fix): first the gate (which page would change; none means it is not a doubt, ask or decide it yourself), then the docs. In the brainstorm a doubt that needs a ruling is asked in the conversation and recorded when the owner rules; from /design on (the autonomous run to the push) an independent agent answers it too and the question goes to the run's question file with your picked answer: both agreeing, the ruling is recorded at once (Automated) and acted on; a disagreement stays open for /audit's verify, or goes to the owner at once only when it blocks the run with a solid reason."
+description: "Use whenever you have a design doubt, a question whose answer would change a rule or a protected document, in any flow (a brainstorm, /design, a plan, an implementation task, an audit, a test fix): first the gate (which page would change; none means it is not a doubt, ask or decide it yourself), then the docs. In the brainstorm a doubt that needs a ruling is asked in the conversation and recorded when the owner rules; from /design on (the autonomous run to the push) an independent agent answers it too and the question goes to the run's question file with your picked answer: both agreeing, the ruling is recorded at once (Automated) and acted on; a disagreement is acted on all the same and recorded at once as disagreed, ruled by the owner after their screenshot review in /audit; the sixth disagreed entry not yet ruled stops the run, and the owner is asked about all of them, one at a time."
 ---
 
 # Answer a doubt
@@ -21,26 +21,30 @@ protected document, so a question that changes no page can never need one. In th
 steps and the plan, `/implement`'s tasks, `/audit`, a test fix, the follow-through) the run is autonomous to the push
 and they may be away: an agent is used only when the question looks like it needs a ruling. When the agent's answer
 agrees with yours, that agreement rules it: the ruling is recorded at once through `/record-decision` with
-`Automated: true` and acted on. When it disagrees, the question stays open in the run's question file and the run goes
-on around it (it is deferred); the open questions are merged, then posed in batches and one by one in `/audit` ›
-`verify`, before the push; only a disagreement that blocks the run, with a solid reason to, goes to them at once. Every
-question is shown with the answer picked, even when uncertain. The question file's form is
-`omc/tools/decisions/FORMAT.md` ("The question file").
+`Automated: true` and acted on. When it disagrees, the run acts on its pick all the same: the ruling is recorded at
+once through `/record-decision --disagreed`, `Automated: disagreed`, and may be undone later; after their screenshot
+review in `/audit` (`push`, the item after it), `/review-decisions` takes them every entry of the run they did not
+rule, the disagreed ones first, and they confirm or overrule each. The one stop before then is the limit: a sixth
+disagreed entry not yet ruled stops the run, and they are asked about all six (step 6). Every question is shown with
+the answer picked, even when uncertain. The question file's form is `omc/tools/decisions/FORMAT.md` ("The question
+file").
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; a path a command printed (the hidden folder) is written out in the next
 one; so are the configured paths of `omc/config.yaml`: `<themes>…` the theme files `paths.themes` matches,
 `<protected>…` the files `paths.protected` matches, `<questions>`, `<specs>` and `<plans>` the folders
 `paths.questions`, `paths.specs` and `paths.plans` (each ending with `/`), `<prefix>` its `branch_prefix`. An empty list
-leaves its read out. The only `just decisions` subcommands this skill runs are `list` and `show`.
+leaves its read out. The only `just decisions` subcommands this skill runs are `list`, `show` and `pending`, and
+`confirm` and `overrule` at the limit's stop alone (step 6).
 
 **Talking to the owner.** In the brainstorm this skill asks them in the conversation (step 2). From `/design` on it asks
-them only a disagreement that blocks the run, with a solid reason (step 6): every other question that needs a ruling
-goes to the run's question file, ruled there by the agreement of the two answers or left open; `/pose-questions` takes
-the open ones to them in `/audit` › `verify` (▣ verify's `integrity` outcome, step 2 of `/review-decisions`), the
-agreeing ones in batches, the rest one by one. Either way write each question as they will read it: the concrete
-situation, the options each with what it concretely produces, never a bare label, and the answer you picked with its
-reason, even when you are unsure of it. Plain words in their vocabulary (the theme files' words).
+them only at the limit's stop (step 6): every other question that needs a ruling goes to the run's question file and
+is recorded at once, `Automated: true` when the two answers agree and `disagreed` when they do not, and acted on;
+`/pose-questions` takes those entries to them after their screenshot review in `/audit` (`push`, the item after it;
+step 2 of `/review-decisions`), the disagreed ones one by one, the agreed ones in batches. Either way write each
+question as they will read it: the concrete situation, the options each with what it concretely produces, never a bare
+label, and the answer you picked with its reason, even when you are unsure of it. Plain words in their vocabulary (the
+theme files' words).
 
 ## 1. Input
 
@@ -87,6 +91,11 @@ something wrong or contradictory; data, safety or rights could go wrong; or a bu
 behaviours that both look intended. Not material: wording unless two names would show the user an actual
 inconsistency; technical internals left to the technical design; rare edge cases whose sensible answer is obvious;
 definitions nobody would act on differently; anything a reasonable builder would simply get right."
+
+**The real question.** A case only a bug, a stale client or an app on another version can cause is not asked as it
+stands: ask the design question behind it (what the server does with an old app's call, say), or settle it when a rule
+covers it. When only one reading makes sense, it is the answer: apply it and say so in one line; never add a second
+option just to have a choice.
 
 **Settled by the docs, or not material**: that is the answer. Act on it (on the obvious answer, for a doubt that is not
 material), write no question, record nothing, spawn no agent. One exception: a protected document found lagging a rule
@@ -212,9 +221,9 @@ folder: `rm -r <HIDDEN>`.
 | Flow | Agree | Disagree |
 |---|---|---|
 | A brainstorm (`/brainstorm`, before `/design`) | asked in the conversation (step 2); never a file, never an agent | the same |
-| `/design` (its steps, the plan it writes), a plan (`/implement`'s `plan`) | rule and act | defer, or ask at once when it blocks |
-| An implementation task, an audit | rule and act | defer, or ask at once when it blocks |
-| Test fixing (any test, the follow-through's included) | inside the autonomous run: rule and act at once; else act at once | defer |
+| `/design` (its steps, the plan it writes), a plan (`/implement`'s `plan`) | rule and act | act, record `disagreed` |
+| An implementation task, an audit | rule and act | act, record `disagreed` |
+| Test fixing (any test, the follow-through's included) | inside the autonomous run: rule and act at once; else act at once | inside the autonomous run: act, record `disagreed`; else collect |
 | A review (`/review-design`) | collect | collect |
 
 - **Rule and act** (inside `/design`, `/implement` or `/audit`; outside them, as **Act**): the agreement of the two
@@ -223,17 +232,35 @@ folder: `rm -r <HIDDEN>`.
   its `Source` the question (`<question file>#Q<k> <title>`, its path under the vault), so that the question's status becomes
   `decision <n>`; then carry it out in the work and set `**Acted on.** yes`. The entry is applied as any entry of the
   build (an apply task of the plan when recorded before it, else `/review-decisions` at the end of `/implement`); the
-  owner sees it among the entries they did not rule (`just decisions list`) at the audit.
+  owner sees it among the entries they did not rule (`just decisions list`) at the audit, after their screenshot
+  review, five at a time.
+- **Act, record `disagreed`** (inside `/design`, `/implement` or `/audit`): the two answers disagree, and the run acts
+  on its pick all the same. First **the limit**: count the log's entries still disagreed and not ruled,
+
+  ```bash
+  ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions pending | grep -c ' disagreed, not ruled: ')
+  ```
+
+  Below five: record it at once through `/record-decision --disagreed`: its `Context` the question, both answers
+  (yours and the independent agent's, each with its choice and conditions) and that the independent agent disagreed,
+  its `Decision` your picked answer, its `Source` the question (`<question file>#Q<k> <title>`, its path under the
+  vault), so that the question's status becomes `decision <n>`; then carry it out in the work and set
+  `**Acted on.** yes`. The entry is applied as any entry of the build, and the owner rules it after their screenshot
+  review: confirmed, it stands; overruled, the new entry's follow-through undoes the work. Five or more: the run stops
+  here and asks the owner in the conversation about all of them, the five or more recorded and this new one, one at a
+  time, each in `pose-questions`' one-by-one form (its step 6), the entry's question read from
+  `just decisions show <n>` and its question file. Each ruling at once: a recorded one they confirm,
+  `just decisions confirm <n>`; one they overrule, their ruling recorded through `/record-decision` (not automated) as
+  a new entry `<m>`, then `just decisions overrule <n> --by <m>`, its follow-through the build's as for any entry; the
+  new one, their ruling recorded through `/record-decision` (not automated), the question's status becoming
+  `decision <n>`, and acted on. Then the run goes on; the count starts again from zero. This is the only question the
+  run puts to them before their screenshot review. A terminal that met the doubt returns it as its `needs_user`; the
+  orchestrator runs this skill.
 - **Act**: carry out the picked answer in the work, then set `**Acted on.** yes`. The owner confirms or corrects it at
   the end of the flow; a different answer is revisited by the follow-through.
-- **Defer**: `**Acted on.** no`, the question stays `open`; the work goes on around the point and does not guess it, and
-  `/audit` › `verify` poses it before the push (outside the autonomous run, `/pose-questions` at the end of the flow).
-- **Ask at once when it blocks**: only when nothing of the flow can go on without the answer, and there is a solid
-  reason it cannot wait for the audit. Ask the owner in the conversation, now (this skill runs in the main session),
-  with the passages, the options each with what it produces and the picked one recommended; their ruling is recorded
-  through `/record-decision` (not `--automated`), the question's status becoming `decision <n>`. A terminal that met the
-  doubt returns it as its `needs_user`; the orchestrator runs this skill.
-- **Collect**: `**Acted on.** no`; the work goes on around the point and does not guess it.
+- **Collect**: `**Acted on.** no`, the question stays `open`; the work goes on around the point and does not guess it.
+  `/pose-questions` takes it to the owner: at the end of the flow outside the autonomous run, after their screenshot
+  review in `/audit` inside it.
 
 Acting edits code and tests only (in `/design` and a plan, the record and the plan), never a protected document: the
 page waits for the ruling and the entry applied through `/apply-decision`, and `just decisions guard` in
@@ -241,8 +268,9 @@ page waits for the ruling and the entry applied through `/apply-decision`, and `
 question file with the work.
 
 **Report** to the flow in one line: `Q<k> in <question file>: picked (<n>), subagent <agree|disagree>, acted on
-<yes|no>`, plus `decision <n> recorded (Automated)` for a ruling by agreement, `deferred` or `asked: decision <n>`
-for a disagreement, or `merged into Q<k> of <question file>`, or step 2's line.
+<yes|no>`, plus `decision <n> recorded (Automated)` for a ruling by agreement, `decision <n> recorded (disagreed)`
+for a disagreement, `asked at the limit: decision <n>` (and the entries confirmed and overruled) for the limit's stop,
+`collected` for a question left open, or `merged into Q<k> of <question file>`, or step 2's line.
 
 ## Never
 
@@ -250,20 +278,21 @@ for a disagreement, or `merged into Q<k> of <question file>`, or step 2's line.
   flows from `/design` on, where the owner may be away. In the brainstorm, ask them.
 - Never bring a question through this skill that changes no protected document (a preference, a fact of the owner's
   environment, a process or proof question, a tool's internals): ask it in the conversation or decide it yourself.
-- Never ask the owner directly from `/design` on but a disagreement that blocks the run with a solid reason: the
-  rest is the agreement's ruling or `/pose-questions`, in `/audit` › `verify`.
+- Never ask the owner directly from `/design` on but the limit's stop (step 6): the rest is recorded at once,
+  `Automated: true` or `disagreed`, and `/pose-questions` takes it to them after their screenshot review in `/audit`.
 - Never show the agent your answer, your leaning, the hidden folder's path, or the options ranked; never write your
   answer after reading the agent's.
-- Never record a ruling the owner did not give but the two this skill causes, both `/record-decision --automated`: a
-  page found lagging in step 2, and, inside `/design`, `/implement` or `/audit`, the agreement of the two answers
-  (step 6).
+- Never record a ruling the owner did not give but the three this skill causes: a page found lagging in step 2 and,
+  inside `/design`, `/implement` or `/audit`, the agreement of the two answers (step 6), both
+  `/record-decision --automated`; and there a disagreement acted on, `/record-decision --disagreed` (step 6).
 - Never edit a protected document; acting edits code and tests only.
 - Never spawn an agent for a question the docs settle, nor a second agent but the one retry of step 4.
 - Never write a second question for one an open question of the run's question file already asks; merge it.
-- Never act on a question that needs a ruling in a review, nor from `/design` on on a disagreement; in the
-  brainstorm the owner's answer in the conversation, recorded, is what is acted on (a
-  docs-settled or immaterial answer of step 2 is acted on in every flow).
+- Never act on a question that needs a ruling in a review, nor on a disagreement outside the autonomous run; in the
+  brainstorm the owner's answer in the conversation, recorded, is what is acted on (a docs-settled or immaterial
+  answer of step 2 is acted on in every flow).
 - Never leave out `Picked` because you are unsure: the owner sees your answer even when uncertain.
 - Never name a model for the agent: `just omc models orchestrator` inside `/design`, `/implement` or `/audit`, otherwise
   the harness default.
-- Never run a `just decisions` subcommand yourself but `list` and `show`; `/record-decision` runs its own.
+- Never run a `just decisions` subcommand yourself but `list`, `show` and `pending`, and `confirm` and `overrule` at
+  the limit's stop; `/record-decision` runs its own.

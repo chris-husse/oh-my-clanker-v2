@@ -31,32 +31,36 @@ ruling", below) and `failed` (`reason`: told to the owner, who says whether it r
 an `OUTCOME` line has failed. **Checked, not believed:** a terminal's word that a tool contradicts is a hard stop to the
 owner (both answers shown, nothing goes on until they rule); an outcome no tool checks is taken as reported, and the
 message says so. One terminal at a time: never a terminal beside another, nor a command of this session's while one
-builds or tests (one build at a time on this machine).
+builds or tests. One build, test or render at a time among this run's own agents and commands; never wait for another
+worktree's or session's run (their load is reported, not waited out).
 
 **A ruling.** On `needs_user`, two kinds. A design doubt (a question whose answer would change a rule or a protected
 document; the task terminal's report holds it as a `DOUBT` block) goes through `/answer-doubt` ("Talking to the owner").
 The three other kinds, and only these (a dirty path the terminal did not write, a run the gate did not start holding
 what the gate needs: wait for it or stop it, a plan and the record that disagree where the record is not clear), are
-asked of the owner directly, each option with what it produces, its `picked` as the recommended one: a question no tool
-or document can settle, the solid reason "From `/design` on" asks for. A `needs_user` of any other kind (a finding of a
-step of `verify`, a budget, a warning) is never put to them in implementation: it is `/audit`'s, and the terminal is run
-again with `answer: not the owner's in implementation: leave it for /audit, name it in the report, and finish the task`.
-Then a terminal that takes an `answer` (▣ task) is run again with it, its `answer: <the answer>` input line, and so is
-the plan written again inline; ▣ check and ▣ build take none (their `needs_user` in `tasks` item 6).
+asked of the owner directly, each option with what it produces, its `picked` as the recommended one: a stop no tool or
+document can settle, which "From `/design` on" leaves to the owner as each step says. A `needs_user` of any other kind
+(a finding of a step of `verify`, a budget, a warning) is never put to them in implementation: it is `/audit`'s, and
+the terminal is run again with `answer: not the owner's in implementation: leave it for /audit, name it in the report,
+and finish the task`. Then a terminal that takes an `answer` (▣ task) is run again with it, its `answer: <the answer>`
+input line, and so is the plan written again inline; ▣ check and ▣ build take none (their `needs_user` in `tasks` item
+6).
 
 **Talking to the owner.** The run is autonomous from `/design` on (`omc/pipeline/design/SKILL.md` › "From `/design` on,
-no question blocks the run"), the plan included: they may be away, and no question blocks the run. A question no
-protected document would change is decided here, from the record, the plan and the code, and the message says how. A
-design doubt goes through `/answer-doubt` (the flow "a plan" while the plan is written, the implementation flow from the
-first task on): both answers agree, the ruling is recorded at once through `/record-decision` with `Automated: true` and
-acted on; they disagree, the question stays open in the run's question file and the run goes on around it, `/audit` ›
-`verify` posing it before the push; only a disagreement that blocks the run, with a solid reason, goes to them at once.
-Every stop is put to them in the conversation, one at a time. Every message opens with the skill and step and its place,
-`/implement › tasks (step 3 of 5)`, and progress as done of total (`task 4 of 12`, `fix round 1 of 2`). Every option
-shows what it concretely produces, never a bare label, with the recommended one named; a long message that asks
-questions ends with every question repeated as a numbered list, one line each with the recommended default. Their
-vocabulary: "the log", "an entry", "recorded", "applied", "the protected documents", "the merge-base", "a question
-file", "the record", "the plan", "in implementation"; no coined compressions.
+no question blocks the run"), the plan included: they may be away, and no question but the limit (below) blocks the
+run. A question no protected document would change is decided here, from the record, the plan and the code, and the
+message says how. A design doubt goes through `/answer-doubt` (the flow "a plan" while the plan is written, the
+implementation flow from the first task on): both answers agree, the ruling is recorded at once through
+`/record-decision` with `Automated: true` and acted on; they disagree, the run acts on its pick all the same, recorded
+at once through `/record-decision --disagreed` (`Automated: disagreed`), and goes on; the owner rules the run's entries
+after their screenshot review in `/audit` (`push`, through `/review-decisions`). The one question to them before then
+is `/answer-doubt`'s limit: the sixth disagreed entry not yet ruled stops the run, and they are asked about all six,
+one at a time. Every stop is put to them in the conversation, one at a time. Every message opens with the skill and
+step and its place, `/implement › tasks (step 3 of 5)`, and progress as done of total (`task 4 of 12`,
+`fix round 1 of 2`). Every option shows what it concretely produces, never a bare label, with the recommended one
+named; a long message that asks questions ends with every question repeated as a numbered list, one line each with the
+recommended default. Their vocabulary: "the log", "an entry", "recorded", "applied", "the protected documents", "the
+merge-base", "a question file", "the record", "the plan", "in implementation"; no coined compressions.
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; a value a command printed (`<record>`, `<plan>`, a task's number, a
@@ -210,8 +214,12 @@ One task at a time, in the plan's order, each through to its tick before the nex
      - `failed`: to the owner, with its reason.
    - `needs_user` with a `DOUBT` block: `/answer-doubt` inline, through the Skill tool, for the implementation flow
      (its input: the question; where, `implement, task <n>` and the block's `where`; the passages its `read` names).
-     Its one-line report decides the `answer` of ▣ task again: `subagent agree` (acted on), the picked answer, to act
-     on; `subagent disagree` (collected), `open: Q<k> of <question file> waits for the owner; go on around it`;
+     Its one-line report decides the `answer` of ▣ task again: `subagent agree` (acted on) or `subagent disagree`
+     (acted on, `decision <n> recorded (disagreed)`), the picked answer, to act on;
+     `asked at the limit: decision <n>`, the owner's ruling as entry <n> of the log records it
+     (`just decisions show <n>`), never the picked answer; the earlier disagreed entries they overruled at that stop are
+     undone by their new entries' follow-through, as for any entry; `collected`,
+     `open: Q<k> of <question file> waits for the owner; go on around it`;
      `settled from the docs` or `not a doubt`, the answer it gives; `merged into Q<k>`, as that question's
      `**Acted on.**` line stands. Then ▣ task again with `task: <n>`, that `answer` and
      `commits: new`.
@@ -268,10 +276,11 @@ One task at a time, in the plan's order, each through to its tick before the nex
      paths committed by name or restored from `HEAD` (`git restore --staged --worktree -- <path>`, an untracked one
      removed). A fix that needs a protected document or a ruling: a design doubt, `/answer-doubt` as in item 5; an
      answer to act on is carried into the code by ▣ task (`task: <n>`, `finding:` check's question, `answer:` the
-     answer, `commits: new`), then ▣ check again. A collected one (`subagent disagree`) is never followed by ▣ check
-     again, which would meet the same doubt: it goes to the owner as the gate's `failed`, the question quoted, the
-     options being their skip of the gate (written and checked as under `failed`, `just omc gate skip check`, the
-     question left open for `/audit` › `verify`) or the build stopped here.
+     answer, `commits: new`), then ▣ check again (a disagreement is acted on too, recorded `disagreed`). A collected
+     one (`collected`) is never followed by ▣ check again, which would meet the same doubt: it goes to the owner as the
+     gate's `failed`, the question quoted, the options being their skip of the gate (written and checked as under
+     `failed`, `just omc gate skip check`, the question left open for `/audit`'s `push` item after the screenshot
+     review) or the build stopped here.
 7. **The tick**, right after the green gate (with `build`: ▣ build's `passed` and the tests' exit 0) and with nothing
    committed between, since the next task's commits are
    read as those above the plan's last commit:
@@ -293,8 +302,9 @@ holds: on to `done`.
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just design-integrity-check --defer-questions; just omc gate passed check)
 ```
 
-`--defer-questions` leaves the `questions` check out: an open question in a question file stays deferred, for
-`/audit` › `verify` to pose before the push, and never stops the night's run here.
+`--defer-questions` leaves the `questions` and `disagreed` checks out: an open question in a question file and an
+entry recorded `disagreed` wait for the owner's rulings after their screenshot review (`/audit`'s `push`), and never stop
+the night's run here.
 
 Green without a pass: only the gate at the end of this step (the clean tree, ▣ check, ✓), below.
 
@@ -302,13 +312,13 @@ Its `PROBLEM:` lines (an entry recorded during the build and not applied, a miss
 document no applied entry names) are the work of `/review-decisions`, inline through the Skill tool, for the rulings
 made during the build, sent as its deferred run (the caller saying `deferred`). It runs inside `/implement`: it poses no
 question here (its step 2 is skipped, an apply agent's doubt stays open in the question file, and it ends with those
-questions open, for `/audit` › `verify`), and its follow-through ends at a green `/check`, never `/verify`, and its red
-check is fixed under this skill's gate: ▣ check as in `tasks` item 6, `why: the follow-through of the decisions`, its
-`failed` to the owner with the skip as their way past. Its report is shown in the message. Then
-✓ `just omc gate passed check`: `passed:` (or `skipped by the owner`), on to `done`. `not passed` (its last run started
-on a dirty tree, or something changed after it): the clean tree ("Before every ▣ check") and ▣ check as in `tasks` item
-6, `why: after the decisions of the build`, then ✓ again; still `not passed`: a hard stop, to the owner with what it
-printed. Then on to `done`.
+questions open, for `/audit`'s `push` item after the screenshot review), and its follow-through ends at a green
+`/check`, never `/verify`, and its red check is fixed under this skill's gate: ▣ check as in `tasks` item 6,
+`why: the follow-through of the decisions`, its `failed` to the owner with the skip as their way past. Its report is
+shown in the message. Then ✓ `just omc gate passed check`: `passed:` (or `skipped by the owner`), on to `done`.
+`not passed` (its last run started on a dirty tree, or something changed after it): the clean tree ("Before every
+▣ check") and ▣ check as in `tasks` item 6, `why: after the decisions of the build`, then ✓ again; still `not passed`:
+a hard stop, to the owner with what it printed. Then on to `done`.
 
 ## `done` — hand the run on.
 
@@ -329,12 +339,14 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc enter --done && j
 - Never take a terminal's word where a tool answers: `just omc plan`, `just omc plan --next`, `git log`,
   `just omc gate passed check`, the omc tool tests' exit and `just design-integrity-check` decide, the terminal's word
   only where none does.
-- Never two terminals at once, nor two tasks: one build at a time.
+- Never two terminals at once, nor two tasks: one build at a time among this run's own.
 - Never tick a task whose gate has not passed or been skipped by the owner; never write a skip but on their word, and
   never offer one for a main-session task the terminal sent back.
 - Never edit a protected document (a file matched by `paths.protected`) but through `/apply-decision` (a plan's apply
   task, or `/review-decisions`' step 3); never write the log but through `just decisions` and `/record-decision`; never
-  record a decision but the owner's ruling or the agreement of `/answer-doubt`'s two answers (`Automated: true`).
-- Never put a design doubt to the owner directly: `/answer-doubt` rules it or collects it, and `/audit` › `verify` poses
-  the open ones; only a disagreement that blocks the run, with a solid reason, goes to them at once.
+  record a decision but the owner's ruling, the agreement of `/answer-doubt`'s two answers (`Automated: true`) or its
+  pick acted on although they disagreed (`Automated: disagreed`).
+- Never put a design doubt to the owner directly: `/answer-doubt` rules it, agreed or disagreed, and the owner rules
+  the run's entries after their screenshot review in `/audit`; the one exception is `/answer-doubt`'s limit, the sixth
+  disagreed entry not yet ruled.
 - Never `git add -A` or `git add .`.

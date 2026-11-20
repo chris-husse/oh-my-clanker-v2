@@ -245,10 +245,14 @@ def gitnexus_verb(args):
 
 def shots_verb(args):
     """`shots pairs [--base B]`: the pairs as JSON, exit 0; `shots accepted [--base B]`: `accepted` 0, or
-    `not accepted: <ids>` 1. B defaults to the merge-base with origin/<base>; the yaml is the branch's."""
+    `not accepted: <ids>` 1; `shots path`: the branch's verdicts, `<paths.questions>shots/<slug>.yaml`, exit 0. B
+    defaults to the merge-base with origin/<base>; the yaml is the branch's."""
     root = repo.root()
-    base = args.base or repo.merge_base(root)
     path = shots.yaml_path(root)
+    if args.ask == 'path':
+        print(path)
+        return 0
+    base = args.base or repo.merge_base(root)
     if args.ask == 'pairs':
         print(json.dumps(shots.pairs(root, base, path)))
         return 0
@@ -387,7 +391,7 @@ def parser():
         elif verb == 'shots':
             s = verbs.add_parser('shots', help="the changed shots' (paths.screenshots) (base, current) LFS pairs "
                                                'with the rows of <paths.questions>shots/<slug>.yaml that hold, as '
-                                               "JSON; accepted: every pair's row `review: accepted`")
+                                               "JSON; accepted: every pair's row `review: accepted`; path: that yaml's path")
             s.add_argument('ask', choices=config.VERBS['shots'])
             s.add_argument('--base', metavar='B', help='the commit to compare with (default: the merge-base with '
                                                        'origin/<base>)')

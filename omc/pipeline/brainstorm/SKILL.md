@@ -69,8 +69,8 @@ Skip when `just omc record` finds one (exit 0): on to `brainstorm`.
 
 ▣ primer, role `orchestrator`: `brief: <the brief>` (its path, or the text). No brief at all: ask the owner for it
 first. `done`, taken as reported: its report is shown to the owner, whole (the subthemes and rules, the stories, the
-documents, the code, the open questions, the scope questions); then on to `seed`. Its scope questions are `seed`'s to
-ask.
+documents, the code, the open questions, the related open work, the scope questions); then on to `seed`. Its scope
+questions are `seed`'s to ask.
 
 ## `seed` — take the owner's seed and scope answers.
 
@@ -81,7 +81,14 @@ them. Then the scope questions whose answer changes the direction of the design 
 or document it would change): the primer's, and those their first thinking raises; a question whose answer changes
 nothing of the direction is not asked. One at a time, each option with what it produces and the recommended one named. A
 scope answer that rules on a rule or a protected document is a design doubt: `/answer-doubt`, and `/record-decision`
-when they rule. Then on to `brainstorm`.
+when they rule.
+
+The primer's "Related open work" is one question, a multi-pick: which of its items the branch takes in, each with its
+source, why it fits and what taking it means. The taken items go into the design doc: a taken deferred entry gets its
+row in "Decisions and the pages they change", in the fold's row form (`omc/terminals/harden/SKILL.md` › "3. The
+fold"), so that `/design`'s plan gives it an apply task (`/apply-decision`) like any recorded one; a taken brief
+(of `paths.briefs`, which ▣ describe deletes in the branch's commit) or a taken question (answered in the branch) is
+named in the doc's scope. None picked is a valid answer. Then on to `brainstorm`.
 
 ## `brainstorm` — discuss the design with the owner until it converges.
 
@@ -92,7 +99,8 @@ is reopening it): the last message below, and nothing else.
 the approved, committed design doc, `<date>-<slug>-design.md` in `paths.specs` (the branch's slug, committed by name),
 and it never invokes `superpowers:writing-plans`; this skill ends instead. Its primer and seed are the two steps above.
 Doubts in it go through `/answer-doubt`, rulings through `/record-decision`, in the conversation; the entries stay
-uncommitted in the log until `/design` commits them.
+uncommitted in the log until `/design` commits them. A new external dependency or system gets its spike here, and a run
+over many units of the same kind its pilot with the owner, both before the design doc (AGENTS.md).
 
 ✓ `just omc record` finds the committed doc; it finds none: the brainstorm is not done, said to the owner, and it goes
 on. Found: the doc is shown to them, and the last message tells them, literally: "The design doc is committed. Type

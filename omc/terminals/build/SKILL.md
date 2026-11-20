@@ -44,7 +44,8 @@ nothing more.
   `needs_user`, with the paths.
 - **One build of this terminal's at a time**: never in parallel with another build, test or render of its own;
   `just omc gate run` waits only for a slot of the gate's machine-wide limit (`concurrency` of `omc/config.yaml`;
-  absent: one) and takes no lock of this worktree, so the rest is the terminal's own discipline.
+  absent: one) and takes no lock of this worktree, so the rest is the terminal's own discipline. Beyond that slot, never
+  wait for another worktree's or session's run (their load is reported, not waited out).
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`.
 

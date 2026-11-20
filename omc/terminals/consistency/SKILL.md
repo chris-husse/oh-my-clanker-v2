@@ -23,8 +23,10 @@ command printed (an id) is written out in the next one.
 
 ## 1. What it reads
 
-- **Every entry of the log** (`paths.decision_log`): `just decisions list`, then `just decisions show <n>` for each. The
-  log holds the branch's entries and no other. No entry: the outcome `consistent` at once.
+- **Every entry of the branch** (`paths.decision_log`): `just decisions list --branch`, then `just decisions show <n>`
+  for each, and each deferred entry of `<base>` the record's section "Decisions and the pages they change" has a row for
+  (taken into the branch). The log also holds `<base>`'s deferred entries, left for a later branch: `--branch` leaves
+  them out, and they are not read. No entry: the outcome `consistent` at once.
 - **The record** given.
 - **Every protected document each entry's Affected names reach** (FORMAT.md › "The names `Affected` takes"): a theme
   file's subtheme and its rules, or the document a name reaches, at the heading the name gives.

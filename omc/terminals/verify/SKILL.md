@@ -39,7 +39,8 @@ yet squashed: each fix its own commit, the baselines' advances one commit of the
   screenshots and the baselines aside, below) is neither committed nor discarded by it: `needs_user`, with the paths.
 - **One build, test or render at a time in this worktree**: nothing else of its own runs beside `verify`; one run per
   worktree, so a rerun waits until the run before it has ended; runs in other checkouts take the gate's machine-wide
-  slots (`concurrency` of `omc/config.yaml`; absent: one), and a run waits for one.
+  slots (`concurrency` of `omc/config.yaml`; absent: one), and a run waits for one; beyond that slot, never wait for
+  another worktree's or session's run (their load is reported, not waited out).
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`.
 
@@ -50,8 +51,9 @@ then the slow ones), and this skill does not list it. `just omc gate run verify`
 streamed and teed to `.cache/omc/gates/verify.log` (truncated at each run), and exits with its exit code. A run with
 arguments (`just omc gate run verify <ARGS…>`, when the project's command takes some to run a part of it) is a partial
 run: it never records a pass and never gives the verdict. After each full run this terminal runs
-`just design-integrity-check` itself, in the foreground (no build, no test); in a project without protected documents
-or a decision log it finds nothing and passes.
+`just design-integrity-check --defer-questions` itself, in the foreground (no build, no test): the open questions and
+the `disagreed` entries wait for the audit's push, since the owner rules them after their screenshot review, which
+follows `verify`; in a project without protected documents or a decision log it finds nothing and passes.
 
 The gate may write files: the screenshots it regenerates (`paths.screenshots` of `omc/config.yaml`) and the baselines
 it advances (`paths.baselines`), each a list of globs. They are left as uncommitted changes by the run and handled
@@ -97,7 +99,8 @@ after the passing run (below). When both lists are empty, every step about them 
    step in the report, fix it, commit the fix, and start again from step 1.
 4. **Fix while it runs.** Analyze each failure as it appears in the log and fix it while the run goes on; do not wait
    for the end. Run nothing else meanwhile.
-5. **Done.** When the exit file holds the code, read it and the log, then run `just design-integrity-check`. Exit 0
+5. **Done.** When the exit file holds the code, read it and the log, then run
+   `just design-integrity-check --defer-questions`. Exit 0
    of a full run started on a clean tree, no `PROBLEM` line, and then `just omc gate passed verify` exits 0: on to
    "After the passing run". Otherwise rerun what each fixed failure fixed (a single test in the foreground, or a
    partial run, `just omc gate run verify <ARGS…>`, started detached and polled the same way), one after another,
@@ -117,11 +120,12 @@ after the passing run (below). When both lists are empty, every step about them 
   or in the code under it, whatever made it pass one time and fail another.
 - **`design-integrity-check`** is read line by line, by the check each `PROBLEM: <check>:` line names. Its
   `links-check` lines are fixed like any red step (`/reconcile-links`; where that skill would leave a question, or a
-  link waits for a decision, `needs_user`). Every other check (`pending`, `questions`, `record`, `guard`,
-  `decisions check`) is never fixed here: this terminal never edits the decision log, never records a decision, never
-  writes a row into the record, never writes a question file and never undoes an edit of a protected document. The
-  run's other failures are still fixed; once the run has ended, each fixed failure's rerun runs as in step 5, the
-  fixes are committed, and the outcome is `integrity` with those `PROBLEM` lines, without a fresh run.
+  link waits for a decision, `needs_user`). Every other check (`pending`, `record`, `guard`, `decisions check`; the
+  open questions and the `disagreed` entries never reach it, as this terminal runs it with `--defer-questions`) is
+  never fixed here: this terminal never edits the decision log, never records a decision, never writes a row into the
+  record, never writes a question file and never undoes an edit of a protected document. The run's other failures are
+  still fixed; once the run has ended, each fixed failure's rerun runs as in step 5, the fixes are committed, and the
+  outcome is `integrity` with those `PROBLEM` lines, without a fresh run.
 
 ## After the passing run
 
@@ -142,9 +146,10 @@ after the passing run (below). When both lists are empty, every step about them 
 
    A commit only under `paths.baselines` keeps the pass: `just omc gate passed verify` still holds.
 2. **The screenshots.** The regenerated screenshots stay in the tree, uncommitted: this terminal never looks at them,
-   judges them, adds, restores or deletes one after the passing run; judging them is `screens-judge`'s.
-   `shots_changed` is `true` when `git status --porcelain -- <specs>`, `<specs>` one pathspec per glob of
-   `paths.screenshots`, lists any line, else `false` (and `false` when the list is empty).
+   judges them, adds, restores or deletes one after the passing run; judging them is ▣ screens-assess's, in the audit's
+   `screens` step, and the owner's review after it. `shots_changed` is `true` when `git status --porcelain -- <specs>`,
+   `<specs>` one pathspec per glob of `paths.screenshots`, lists any line, else `false` (and `false` when the list is
+   empty).
 
 ## The outcome
 
@@ -171,7 +176,7 @@ the failing tests of the last attempt; `problems` holds the `PROBLEM` lines of e
   `integrity`.
 - Never start an agent or a skill that starts one or that talks to the owner: the report and its `OUTCOME` line are
   the whole answer.
-- Never run the gate inside a tool call (it starts detached), never a run beside another, never stop a run this
-  terminal did not start.
+- Never run the gate inside a tool call (it starts detached), never a run of this run's beside another, never stop a
+  run this terminal did not start.
 - Never take a partial run or a run started on a dirty tree for the verdict.
 - Never `git add -A`, `git add .` or `git add -f`.

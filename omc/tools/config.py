@@ -20,7 +20,7 @@ VERBS = {'enter': (), 'record': (), 'plan': (), 'git': ('rebased-on', 'one-commi
          'impact': (), 'gate': ('run', 'passed', 'skip'), 'reviewed': (), 'settled': (), 'models': (), 'handoff': (),
          'lint': (), 'gitnexus': ('install', 'refresh', 'query', 'context', 'impact', 'cypher'),
          'title': ('set', 'release', 'apply'), 'shell-integration': ('fish',), 'pass': ('harden', 'consistency'),
-         'shots': ('pairs', 'accepted'), 'todos': ()}
+         'shots': ('pairs', 'accepted', 'path'), 'todos': ()}
 # The four skills of omc/pipeline/, the words `just omc enter` takes
 PIPELINE = ('brainstorm', 'design', 'implement', 'audit')
 # The three gate terminals of omc/terminals/ that are also skills, /check, /build, /verify

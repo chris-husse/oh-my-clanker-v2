@@ -10,10 +10,11 @@ the protected documents (`paths.protected`), the theme files (`paths.themes`), t
 and the log. The rule is the vault's `LINKS.md`, where the project keeps one; read it whole first. `just links-check` is
 the judge: it prints one `PROBLEM: <file>:<line>: <kind>: <detail>` per break, then `OK` or `<n> problems`.
 
-Every command starts from `ROOT=$(git rev-parse --show-toplevel)`. Scratch files go to `/tmp/reconcile-links/`; the
-list of changed files is the worktree's own, `"$ROOT/.cache/reconcile-links/changed.txt"` (`.cache/` is gitignored).
+Every command starts from `ROOT=$(git rev-parse --show-toplevel)`. Scratch files go to the worktree's own
+`"$ROOT/.cache/reconcile-links/"` (`.cache/` is gitignored), among them the list of changed files,
+`"$ROOT/.cache/reconcile-links/changed.txt"`.
 Before the first round: `ROOT=$(git rev-parse --show-toplevel); mkdir -p
-/tmp/reconcile-links "$ROOT/.cache/reconcile-links" && rm -f "$ROOT/.cache/reconcile-links/changed.txt"`.
+"$ROOT/.cache/reconcile-links" && rm -f "$ROOT/.cache/reconcile-links/changed.txt"`.
 
 ## Each round
 
@@ -24,7 +25,7 @@ decision, never written here: take it through `/answer-doubt` (it records an `Au
 else writes the question to the run's question file for the owner), never `/record-decision` on your own; leave the
 problem and list it in the End with the entry or the question, which `/review-decisions` carries through.
 
-1. `ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just links-check) > /tmp/reconcile-links/check.txt`.
+1. `ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just links-check) > "$ROOT/.cache/reconcile-links/check.txt"`.
 2. Fix every `PROBLEM` line by reading the file around the line, and the target:
    - `dead-heading`: the heading was renamed. Find it in the target file by the reference's id (`W16`, a subtheme's
      `T9.2`), else by meaning, and write its text as the anchor (every space as `%20`, every backtick as `%60`, see

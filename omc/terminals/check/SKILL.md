@@ -40,8 +40,9 @@ review fixes); it frames the fixes and the report, nothing more.
   `commits: amend`, `git commit --amend --no-edit` into the branch's one commit. A changed path this terminal did not
   write is neither committed nor discarded by it: `needs_user`, with the paths.
 - **One run of this terminal's at a time**: never a run beside another of its own; runs of the gate in other checkouts
-  take the machine's slots (`concurrency` of `omc/config.yaml`), and a run waits for one; the project's command runs
-  its steps as it does, and the test runners parallelize inside.
+  take the machine's slots (`concurrency` of `omc/config.yaml`), and a run waits for one; beyond that slot, never wait
+  for another worktree's or session's run (their load is reported, not waited out). The project's command runs its
+  steps as it does, and the test runners parallelize inside.
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`.
 
@@ -122,5 +123,5 @@ the failing tests of the last attempt.
 - Never start an agent or a skill that starts one or that talks to the owner: the report and its `OUTCOME` line are
   the whole answer.
 - Never take a partial run, or a run started on a dirty tree, for the verdict.
-- Never start a run beside another, and never stop a run this terminal did not start.
+- Never start a run beside another of this run's, and never stop a run this terminal did not start.
 - Never `git add -A`, `git add .` or `git add -f`.

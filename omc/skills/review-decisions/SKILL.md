@@ -1,6 +1,6 @@
 ---
 name: review-decisions
-description: "Carry every pending decision through: trim the log, pose the run's open questions, apply every recorded entry in id order (one fresh agent and one commit each), append the record's missing rows, then the follow-through (links, then code) until the gate is green: /check run from /implement or /audit, /verify run by hand. Runs at the end of /implement, from /audit's rebase (the impact reading) and its red decision checks, and on its own."
+description: "Carry every pending decision through: trim the log, pose the run's entries the owner did not rule and its open questions (not in a deferred run), apply every recorded entry in id order (one fresh agent and one commit each; a deferred entry is skipped and named), append the record's missing rows, then the follow-through (links, then code) until the gate is green: /check run from /implement or /audit, /verify run by hand. Runs at the end of /implement, from /audit's rebase (the impact reading), its screens step (its pose skipped), its red decision checks and its push item after the owner's screenshot review, and on its own."
 ---
 
 # Review the decisions
@@ -14,37 +14,44 @@ gate is green: `/check` run from `/implement` or `/audit`, `/verify` run by hand
 file are in `omc/tools/decisions/FORMAT.md`.
 
 **Who runs it.** It runs at the end of `/implement` (its step `decisions`); from `/audit`'s `rebase`, after the impact
-reading (`omc/terminals/impact`); from a red `design-integrity-check` in `/audit`'s `verify` or before its push; and on
-its own, `/review-decisions`. **Nothing runs it before implementation** (the brainstorm, `/design`, its `harden`, a
-rebase while the branch changes nothing outside `paths.specs`, `paths.plans`, the log and `paths.questions`): there
-nothing builds or tests, and the plan, not this skill, applies the record's entries. A run the owner asks for, typed or
-handed over on their word, is theirs, whenever they ask. "Run from `/implement` or `/audit`" means any of those callers
-but the owner's own `/review-decisions` (and `/review-design`'s hand-over on their word): the caller says so when it
+reading (`omc/terminals/impact`); from a red `design-integrity-check` in `/audit`'s `verify` or before its push; from
+`/audit`'s `push` item after the owner's screenshot review (`after review`); and on its own, `/review-decisions`.
+**Nothing runs it before implementation** (the brainstorm, `/design`, its `harden`, a rebase while the branch changes
+nothing outside `paths.specs`, `paths.plans`, the log and `paths.questions`): there nothing builds or tests, and the
+plan, not this skill, applies the record's entries. A run the owner asks for, typed or handed over on their word, is
+theirs, whenever they ask. "Run from `/implement` or `/audit`" means any of those callers but the owner's own
+`/review-decisions` (and `/review-design`'s or the project's screenshot review's hand-over on their word): the caller says so when it
 sends work here, and a run the owner typed, or handed over on their word, is run by hand. Run from `/implement` or
 `/audit` it is part of that skill's work: its authorization covers it, and its next step comes after this report.
 
-**Deferred or whole.** Run from `/implement` (its step `decisions`) or from `/audit` before its `verify` (`rebase` item
-5, `review` item 5), the run is **deferred**: it poses no question, since the run is autonomous from `/design` on and
-the open questions wait for `/audit` › `verify`, where the owner is anyway. Step 2 is skipped, an apply agent's doubt
-stays open in the question file (step 3), and the run ends with its deferred questions open (step 4 (d)). The caller
-says `deferred` when it sends work here. Run from `/audit`'s `verify` on (▣ verify's `integrity` outcome, `push`, the
-option the owner takes in its "A gate's answers"), or by hand, the run is **whole**: every step as written. Every skill
-it calls (`/pose-questions`, `/apply-decision` in its agents, `/answer-doubt`, `/record-decision`, `/reconcile-links`)
-ends with a report; that report ends the called skill, never this run. The agents it spawns are fresh,
-`subagent_type: general-purpose`; inside `/design`, `/implement` or `/audit` they take the model and effort
-`just omc models <role>` prints for their role, otherwise the harness default; this skill names no model.
+**Deferred or whole.** Run from `/implement` (its step `decisions`) or from `/audit` before the item after the owner's
+screenshot review (`rebase` item 5, `review` item 4, ▣ verify's `integrity` outcome, `screens`), the run is
+**deferred**: it poses no question, since the run is autonomous from `/design` on and the run's entries and open
+questions wait for the owner's review after their screenshots. Step 2 is skipped, an apply agent's doubt stays open in
+the question file (step 3), and the run ends with its deferred questions open (step 4 (d)). The caller says `deferred`
+when it sends work here. Run from `/audit`'s `push` item after the screenshot review (the caller says `after review`;
+`push`'s red `disagreed` or `questions` line sends the run there), or by hand, the run is **whole**: every step as
+written, step 2 posing the run's entries the owner did not rule. Every skill it calls (`/pose-questions`,
+`/apply-decision` in its agents, `/answer-doubt`, `/record-decision`, `/reconcile-links`) ends with a report; that
+report ends the called skill, never this run. The agents it spawns are fresh, `subagent_type: general-purpose`; inside
+`/design`, `/implement` or `/audit` they take the model and effort `just omc models <role>` prints for their role,
+otherwise the harness default; this skill names no model.
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; the configured paths of `omc/config.yaml` are written out in each
 command: `<log>` is `paths.decision_log`, `<questions>` and `<specs>` the folders `paths.questions` and `paths.specs`
 (ending with `/`), `<baselines>…` the globs of `paths.baselines`, each as a `':(glob)<glob>'` pathspec. The log is
-written only through `just decisions`; its subcommands are `add-decision`, `apply-decision`, `update`, `remove`, `show`,
-`list`, `pending`, `guard`, `trim`, `resolve`, `renumber` and `check`, no other; this skill runs `trim`, `check`,
-`pending`, `list`, `show` and `guard` itself, `renumber` only as `omc/terminals/rebase` › "4. The log after the rebase"
-runs it, and the others only through `/record-decision` and `/apply-decision`. A commit stages its paths by name, never
-`git add -A` or `git add .`, and its message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One
-build, test or render at a time on this machine: never a run beside another, and never a command of yours while an agent
-of yours builds.
+written only through `just decisions`; its subcommands are `add-decision`, `apply-decision`, `defer`, `undefer`,
+`update`, `remove`, `confirm`, `overrule`, `show`, `list`, `pending`, `guard`, `trim`, `resolve`, `renumber` and
+`check`, no other; this skill runs `trim`, `check`, `pending`, `list`, `show` and `guard` itself, `renumber` only as
+`omc/terminals/rebase` › "4. The log after the rebase" runs it, `confirm`, `overrule` and `defer` only through
+`/pose-questions` (`defer` also through `/record-decision --defer` and the screenshot review of `/audit`'s `screens`, on the owner's
+word),
+`undefer` never, and the others only through `/record-decision` and `/apply-decision`. A commit stages its paths by
+name, never `git add -A` or `git add .`, and its message ends with
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. One build, test or render at a time among this run's own
+agents and commands; never wait for another worktree's or session's run (their load is reported, not waited out):
+never a run of this run's beside another, and never a command of yours while an agent of yours builds.
 `<base>` is `base` of `omc/config.yaml`, the base branch (`main` as shipped), read from the file and written out
 in each command; `origin/<base>` is its remote branch.
 
@@ -55,8 +62,8 @@ report. Every message to them opens with progress, done of total and what is ahe
 each option concretely produces, never a bare label. A long message that asks questions ends with every question
 repeated as a numbered list, same numbers, one line each with the recommended default. Inside this work an "ok" means
 continue; never stop between entries to report. Use their vocabulary: "the log", "an entry", "recorded",
-"applied", "the protected documents", "the merge-base", "a question file", "a review file", "the follow-through"; never
-a coined compression.
+"applied", "deferred", "the protected documents", "the merge-base", "a question file", "a review file", "the
+follow-through"; never a coined compression.
 
 ## 0. The start
 
@@ -100,24 +107,49 @@ drop an entry to pass.
 
 ## 2. The questions
 
-**Deferred: skipped.** No pose, no commit here; the open questions stay in their question files for `/audit` ›
-`verify`, and the run goes on to step 3.
+**Deferred: skipped.** No pose, no commit here; the run's entries and the open questions wait for `/audit`'s `push`
+item after the owner's screenshot review, and the run goes on to step 3. Run from `/implement`, and from `/audit`
+before that item, step 2 is always skipped.
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions pending; just decisions pending | sed -n 's/^PENDING: \([^:]*\.md\):[0-9][0-9]*: .*/\1/p' | sort -u)
 ```
 
-`pending` prints `OK`, or one `PENDING:` line per recorded entry
-(`PENDING: decision <n> recorded, not applied: <title>`) and per open question
-(`PENDING: <questions><question file>.md:<line>: Q<k> <title> is open`), and exits 1 when it prints any. The second part
-lists the question files that hold an open question. None: go on to step 3, no commit here.
+`pending` prints `OK`, or one `PENDING:` line per recorded entry (`PENDING: decision <n> recorded, not applied:
+<title>`), per entry not ruled (`PENDING: decision <n> disagreed, not ruled: <title>`) and per open question
+(`PENDING: <questions><question file>.md:<line>: Q<k> <title> is open`), and exits 1 when it prints any. The second
+part lists the question files that hold an open question.
 
-Otherwise run `/pose-questions` with those files, through the Skill tool:
-`/pose-questions <questions><question file>.md …`. It takes every open question to the owner, records every ruling
-through `/record-decision` (the question's status becomes `decision <n>`), writes `answered` and the `**Differs.**`
-lines, and commits nothing. When it ends, commit the question files and the log together (the log holds the entries just
-recorded); this commit has to come before step 3, because `/apply-decision`'s gate stops on any uncommitted change but
-the log and the question files, and the question files would otherwise stay uncommitted through the run:
+**The run's entries the owner did not rule** (run from `/audit`'s `push` item after the screenshot review, or by
+hand): the branch's entries still `Automated: disagreed` or `true`, those numbered from the merge-base log's `Next:`
+on (the entries `<base>` already held are not the run's), the disagreed ones first. A confirmed `true` entry reads as
+an unconfirmed one, so the `true` ones the owner was already posed (confirmed, overruled or skipped; the ignored file
+`.cache/omc/entries-posed`, one id per line) are left out, never asked again in any form; a disagreed one is always
+listed, as it stays disagreed only while they have not ruled it:
+
+```bash
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && n=$(git show "$(git merge-base HEAD origin/<base>):<log>" 2>/dev/null | sed -n 's/.*Next: \([0-9][0-9]*\).*/\1/p'); just decisions list | awk -v n="${n:-0}" '$1+0 >= n+0 && /Automated: disagreed /'; p=" $(tr '\n' ' ' 2>/dev/null < .cache/omc/entries-posed) "; just decisions list | awk -v n="${n:-0}" -v p="$p" '$1+0 >= n+0 && index(p, " " ($1+0) " ") == 0 && /Automated: true /')
+```
+
+No entry and no question file: go on to step 3, no commit here.
+
+Otherwise run `/pose-questions` with those entries and files, through the Skill tool:
+`/pose-questions decision <n> … <questions><question file>.md …`. It takes the entries to the owner (the `disagreed`
+ones one at a time, then the `true` ones five at a time, a skipped one confirmed), then every open question; it
+confirms or overrules each entry (`just decisions confirm <n>`, or a new entry through `/record-decision` and
+`just decisions overrule <n> --by <m>`), records every ruling through `/record-decision` (the question's status
+becomes `decision <n>`), writes `answered` and the `**Differs.**` lines, and commits nothing. An entry overruled leaves
+its new entry recorded: step 3 applies it, and the follow-through (step 4) undoes what the old one did, its
+`**Differs.**` line naming it. When it ends, commit the question files and the log together (the log holds the entries
+just recorded). Every entry id it was given is appended to `.cache/omc/entries-posed` first, posed now whatever the
+owner ruled:
+
+```bash
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && mkdir -p .cache/omc && printf '%s\n' <n> … >> .cache/omc/entries-posed)
+```
+
+The commit has to come before step 3, because `/apply-decision`'s gate stops on any uncommitted change but the log and
+the question files, and the question files would otherwise stay uncommitted through the run:
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git status --porcelain -- <log> <questions><question file>.md …)
@@ -130,12 +162,13 @@ When it lists nothing, no commit. Otherwise, the question files named by their f
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git add -- <log> <questions><question file>.md … && git commit -m "Questions answered: <question file names> (decisions <n>…)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- <log> <questions><question file>.md … && git show --stat --format='%h %s' HEAD)
 ```
 
-`(decisions <n>…)` names every entry recorded, `42, 43`; when no entry was recorded (every question answered from the
-docs, or left open), the subject ends at the file names.
+`(decisions <n>…)` names every entry recorded, confirmed or overruled, `42, 43`; when there is none (every question
+answered from the docs, or left open), the subject ends at the file names. With entries posed and no question file
+changed, the subject is `Decisions ruled: <n>…` and only the log is staged.
 
 A question the owner leaves open on purpose ("later") stays `open`: `just decisions pending` keeps naming it and
-`verify`'s `design-integrity-check` stays red on it (`questions`). The run goes on with the rest, never comes back to
-this step for it, and step 5 names it.
+`just design-integrity-check` stays red on it (`questions`) in `/audit`'s `push` item 3 and in the `pre-push` hook.
+The run goes on with the rest, never comes back to this step for it, and step 5 names it.
 
 ## 3. Apply every recorded entry
 
@@ -143,9 +176,12 @@ this step for it, and step 5 names it.
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions list)
 ```
 
-Each line is `n  status  Automated: true|false  title`. The entries whose status is `recorded`, in id order, are the
-total; each one gets one fresh agent, `subagent_type: general-purpose`, one at a time: start the next only when the
-previous one has returned and its commit is checked. Its prompt is exactly the brief below, `<n>` the entry's id and
+Each line is `n  status  Automated: <value>  title`. The entries whose status is `recorded`, in id order, are the
+total. An entry whose status is `deferred` is skipped: the owner deferred it to `<base>`, for a later branch (`omc/tools/decisions/FORMAT.md` ›
+"The entry"); it
+backs no page, `pending` does not name it, and the report names it (step 5). Each recorded entry gets one fresh
+agent, `subagent_type: general-purpose`, one at a time: start the next only when the previous one has returned and its
+commit is checked. Its prompt is exactly the brief below, `<n>` the entry's id and
 `<worktree root>` the absolute path `git rev-parse --show-toplevel` printed:
 
 ### Brief "apply"
@@ -181,13 +217,13 @@ edited):
    agent named. It settles it from the docs, or writes it to the run's question file.
 2. When it wrote a question, **deferred**: no pose; the question stays open in the question file, committed with the log
    as in step 2's commit (`Questions collected: <question file names>`), the stopped entry stays recorded, and the run
-   goes on with the next entry; `/audit` › `verify` poses it and applies the entry the ruling becomes. **Whole**: run
-   `/pose-questions` over that question file at once. The ruling the owner gives is recorded as a new entry that
-   replaces the stopped one (`/record-decision` step 1: its `Context` says `replaces decision <n>`, its `Decision` is
-   the stopped entry's decision with the owner's answer in it); commit the question file and the log as in step 2. When
-   `/answer-doubt` settled it from the docs instead, the same: a new entry whose `Decision` carries the reading the docs
-   settle, replacing the stopped one; it keeps the stopped entry's `Automated` value (an owner's ruling stays `false`,
-   `/record-decision` step 3), since its decision is still theirs.
+   goes on with the next entry; `/audit`'s `push` item after the screenshot review poses it and applies the entry the
+   ruling becomes. **Whole**: run `/pose-questions` over that question file at once. The ruling the owner gives is
+   recorded as a new entry that replaces the stopped one (`/record-decision` step 1: its `Context` says
+   `replaces decision <n>`, its `Decision` is the stopped entry's decision with the owner's answer in it); commit the
+   question file and the log as in step 2. When `/answer-doubt` settled it from the docs instead, the same: a new entry
+   whose `Decision` carries the reading the docs settle, replacing the stopped one; it keeps the stopped entry's
+   `Automated` value (an owner's ruling stays `false`, `/record-decision` step 3), since its decision is still theirs.
 3. The stopped entry runs again, in a fresh agent with the same brief: `/apply-decision` applies a replaced entry with
    nothing to change and commits the log alone. The new entry runs in its turn, in id order. Update the total and
    `<ids>` of the progress line.
@@ -269,9 +305,10 @@ changes when it disagrees with them, a test only to say what its rule says.
 Run from `/implement` or `/audit`, no `/verify`, whole or partial: `/check` is the check here.
 
 A question on the way goes through `/answer-doubt`, flow test fixing: it acts on its picked answer when the docs settle
-it or the agent agrees, and the question waits in the run's question file; part (d) takes it to the owner before the
-run ends (deferred: it stands, for `/audit` › `verify`). Commit each piece of code work by its paths, with the question
-file when it changed:
+it or the agent agrees, and, run from `/implement` or `/audit`, also when it disagrees (an entry recorded `disagreed`);
+outside them a disagreement waits in the run's question file, and part (d) takes it to the owner before the run ends
+(deferred: it stands, for `/audit`'s `push` item after the screenshot review). Commit each piece of code work by its
+paths, with the question file when it changed:
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git add -- <path> … && git commit -m "Follow-through: <what> (decisions <n>…)" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- <path> … && git show --stat --format='%h %s' HEAD)
@@ -298,7 +335,9 @@ step 5 names: a question the follow-through wrote (an `/answer-doubt` on the way
 back to step 2 and step 3 for them, then through (a)–(c) for what they changed. A question left open on purpose sends
 the run back nowhere: it stays open, and `pending` keeps naming it. **Deferred**, every open question stands too (and an
 entry stopped on one, step 3 item 2): a question sends the run back nowhere, only an entry recorded sends it to step 3;
-`pending` may still name them, and step 5 names them as waiting for `/audit` › `verify`, where the run is whole.
+`pending` may still name them, and step 5 names them as waiting for `/audit`'s `push` item after the screenshot review,
+where the run is whole. An entry `disagreed` the run recorded is applied as any entry (step 3); `pending` names it until
+the owner rules it there.
 
 **Run from `/implement` or `/audit`** the run ends here, at a green `/check` after (c): no `/verify`, whole or partial,
 and no fix loop around one; `verify` is `/audit`'s `verify` step. A `/check` that ends `failed` ends this run with its
@@ -323,7 +362,7 @@ are analysed: do they match what was fixed; was anything raised that should not 
 **Red.** Run by hand, a `/verify` (or `/check`) that ends `failed` (its own bound reached) gets one CRITICAL question
 naming the red stage, its failure, what the fixes tried and the answer needed, with the options and what each
 produces, and the numbered list at the end; its `needs_user` is asked of the owner the same way. No later step runs
-on a red gate. One build or test at a time; never a run beside another.
+on a red gate. One build or test at a time among this run's own; never a run of this run's beside another.
 
 ## 5. The report
 
@@ -335,17 +374,19 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git log --oneline <start>.
 
 - the entries applied, one line each: `decision <n>: <title>`;
 
+- the entries deferred, skipped by step 3, one line each: `decision <n> deferred: <title>` (`just decisions list
+  --branch`, status `deferred`: this branch's, never `<base>`'s deferred entries), left on `<base>` for a later branch;
 - the commits, `git log --oneline <start>..HEAD`;
 - the verdict the run ended on: `/check`'s run from `/implement` or `/audit`, the fresh `/verify`'s by hand;
-- the questions left open (the `PENDING:` lines of open questions; in a deferred run, those that wait for `/audit` ›
-  `verify`, with the entries stopped on them), and the gaps the owner left open.
+- the questions left open (the `PENDING:` lines of open questions; in a deferred run, those that wait for `/audit`'s
+  `push` item after the screenshot review, with the entries stopped on them), and the gaps the owner left open.
 
 When anything is asked, the report ends with every question repeated as a numbered list, same numbers, one line each
 with the recommended default. Then the calling flow goes on with its next step.
 
 ## Never
 
-- Never apply two entries in one agent.
+- Never apply two entries in one agent; never apply a deferred entry here, nor defer one on your own.
 - Never run two builds at once.
 - Never edit a protected document but through `/apply-decision`.
 - Never edit the log by hand; it is written only through `just decisions`.

@@ -235,6 +235,8 @@ class Cli(ShotsTest):
         self.rows({'a': {'base': sha(red), 'current': sha(blue), 'review': 'accepted'}})  # the branch's yaml
         r = self.omc('shots', 'accepted')
         self.assertEqual((r.returncode, r.stdout), (0, 'accepted\n'), r.stderr)
+        r = self.omc('shots', 'path')
+        self.assertEqual((r.returncode, r.stdout), (0, 'docs/reviews/shots/x.yaml\n'), r.stderr)
         r = self.omc('shots', 'pairs', '--base', 'nosuchref')
         self.assertEqual((r.returncode, r.stdout), (2, ''))
         self.assertTrue(r.stderr.startswith('error: '), r.stderr)

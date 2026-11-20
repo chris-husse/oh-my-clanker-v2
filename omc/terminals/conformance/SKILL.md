@@ -57,8 +57,9 @@ applied entry, and `omc/tools/decisions/FORMAT.md` leaves the rest to a reader (
 matches the decision's words"). This part reads every decision of the branch against the record, the protected documents
 and the code.
 
-Run `just decisions list`: the log is trimmed of `<base>`'s entries at every rebase, so every line is an entry recorded
-or applied on the branch. None: say "no decision on this branch; nothing to review" in the report, and this part has
+Run `just decisions list --branch`: every line is an entry recorded or applied on the branch (the log also holds
+`<base>`'s deferred entries, left for a later branch, which `--branch` leaves out). None: say "no decision on this
+branch; nothing to review" in the report, and this part has
 no finding.
 
 Otherwise read the record's section "Decisions and the pages they change", and per entry (`just decisions show <n>`):
