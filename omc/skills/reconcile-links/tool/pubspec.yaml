@@ -1,0 +1,15 @@
+name: docs_links
+description: The links of the docs vault - scanning, the vault check, and link-free reading of the corpus.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  crypto: ^3.0.8
+  path: ^1.9.0
+  yaml: ^3.1.0
+
+dev_dependencies:
+  test: ^1.25.0

@@ -1,0 +1,30 @@
+# omc's config, the pipeline's and the project's paths: read by `just omc` and `just design`
+base: main
+branch_prefix: feature/
+orchestrator-model: opus          # the session `just design` launches, and every agent not named below
+ask_for_provider_handoff: false   # true: stop before /implement and before /audit
+models:                           # the tiers; the cheap/fast tier is refused
+  max: fable                      # ▣ harden's first pass only (`just omc pass harden`)
+  medium: opus                    # and every later pass of ▣ harden (`harden-repeat`)
+  low: sonnet
+complexity:                       # a plan task's `Complexity:` line → a tier, or the orchestrator
+  simple: low
+  medium: medium
+  high: orchestrator
+gitnexus:
+  origin: https://github.com/chris-husse/GitNexus.git
+  commit: d8683be63a1f061ef88d993d4446a63144405e57
+# concurrency:                  # runs of a gate at once on this machine, over every checkout (absent: 1)
+#   check: 2
+# silence:                      # seconds without a byte of output before the gate ends a run, exit 124 (absent: never)
+#   verify: 60
+paths:
+  protected: []                 # globs of the documents that change only through an applied decision
+  screenshots: []               # globs of committed screenshots
+  baselines: []                 # globs of files a gate regenerates and commits
+  briefs: tasks/
+  specs: docs/superpowers/specs/
+  plans: docs/superpowers/plans/
+  decision_log: docs/decision-log.md
+  questions: docs/reviews/
+  themes: []                    # globs of the theme files (rule ids)
