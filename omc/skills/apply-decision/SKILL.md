@@ -1,6 +1,6 @@
 ---
 name: apply-decision
-description: "Apply one recorded decision of the log to the protected documents it reaches (the rules of the theme files, the stories, every file paths.protected matches), mark it applied with the real Affected set, and commit the pages and the log together. Run as an apply task of an implementation plan, as step 3 of /review-decisions, or on the owner's word; never on your own initiative."
+description: "Apply one recorded (or deferred) decision of the log to the protected documents it reaches (the rules of the theme files, the stories, every file paths.protected matches), mark it applied with the real Affected set, and commit the pages and the log together. Run as an apply task of an implementation plan, as step 3 of /review-decisions, or on the owner's word; never on your own initiative."
 ---
 
 # Apply a decision
@@ -14,16 +14,19 @@ keeps one.
 
 **When it runs.** An implementation plan runs it in one task per entry, in id order, each a fresh agent (the plan rule
 of `omc/terminals/write-plan/SKILL.md`); `/review-decisions` step 3 runs it in one fresh agent per pending entry, in id
-order; the owner may run it themselves, `/apply-decision <n>`. Never start it on your own initiative.
+order; the owner may run it themselves, `/apply-decision <n>`. A deferred entry (the owner deferred it to `<base>`, for
+a later branch) is applied the same way, by the plan task of the branch that takes it in. Never start it on your own
+initiative.
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; the configured paths of `omc/config.yaml` are written out in each
 command: `<log>` is `paths.decision_log`, `<questions>` the folder `paths.questions` (ending with `/`), `<themes>…` the
 theme files `paths.themes` matches and `<protected>…` the files `paths.protected` matches (an empty list leaves its read
 out). The log is written only through `just decisions` (`just decisions <subcommand> --help`); its subcommands are
-`add-decision`, `apply-decision`, `update`, `remove`, `show`, `list`, `pending`, `guard`, `trim`, `resolve`, `renumber`
-and `check`, no other. A text that goes into a command (a title, a commit body) travels in a shell variable, never
-pasted into the command, so a backtick or a `$` in it is not read by the shell.
+`add-decision`, `apply-decision`, `defer`, `undefer`, `update`, `remove`, `confirm`, `overrule`, `show`, `list`,
+`pending`, `guard`, `trim`, `resolve`, `renumber` and `check`, no other; this skill runs `show`, `list`,
+`apply-decision` and `guard`. A text that goes into a command (a title, a commit body) travels in a shell variable,
+never pasted into the command, so a backtick or a `$` in it is not read by the shell.
 `<base>` is `base` of `omc/config.yaml`, the base branch (`main` as shipped), read from the file and written out
 in each command; `origin/<base>` is its remote branch.
 
@@ -39,8 +42,10 @@ the agent talks to no one: its stop or its report goes back to the caller, which
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions show <n>)
 ```
 
-The entry's `**Status.**` line must read `recorded <date>`, with no `· applied`; an entry already applied, or an id
-the tool refuses, stops with what it printed. Then the tree:
+The entry's `**Status.**` line must read `recorded <date>` or `recorded <date> · deferred <date>` (a deferred entry,
+taken in by this branch), with no `· applied`; an entry already applied, or an id the tool refuses, stops with what it
+printed. A deferred entry is applied as a recorded one; its status then reads
+`recorded <date> · deferred <date> · applied <date>`, the history kept. Then the tree:
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && git status --porcelain --untracked-files=all | while IFS= read -r l; do p=${l:3}; [ "$p" = <log> ] && continue; case "$p" in <questions>*.md) head -1 -- "$p" 2>/dev/null | grep -q '^# Questions: ' && continue;; esac; printf '%s\n' "$l"; done)
@@ -97,6 +102,10 @@ fix it). The order is the docs' own: rules, then stories, then the other protect
   `{ref: <n>, …}` line: the entry's number is scratch.
 
 New text is written as its neighbours are (a story id in a rule as its link, as the vault's `LINKS.md` writes it).
+
+A ruling that would remove from a page a button, row or step the person uses to solve the situation the page
+shows is not applied there: list the page and the step it would lose, and stop for the owner (apply the ruling
+everywhere else).
 
 ## 4. Never in this step
 

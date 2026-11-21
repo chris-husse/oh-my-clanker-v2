@@ -56,7 +56,8 @@ path listed was not written by this run: `needs_user`, with the paths, before an
   with its passage, question and options; any other stop of it is `failed`, with what it printed.
 - **The links task** (`just links-check`, then `/reconcile-links`): that skill is followed; what it would take
   through the doubt skill or put as a question is a design doubt here (below), the other links fixed.
-- **The commands the task names** are run, one at a time, nothing beside another build or test on this machine:
+- **The commands the task names** are run one at a time. One build, test or render at a time among this run's own
+  agents and commands; never wait for another worktree's or session's run (their load is reported, not waited out):
     - its test files, each in the foreground, one after another, with the project's test runner;
   - never `/check`, `/build`, `/verify`, `just omc gate run`, a command of `omc/bin/` or any other step that `verify`
     runs (the project's `omc/bin/verify`), even where the task's text names them: `check` is the orchestrator's gate
@@ -127,8 +128,8 @@ OUTCOME {"outcome": "failed", "reason": "task 4 is conducted by the main session
 - Never edit a protected document outside an apply task's skill; never edit the plan or the record, and never tick a
   task: the orchestrator ticks it.
 - Never write the log or an entry, never record a decision, never write a question file: a doubt is `needs_user`.
-- Never run `/check`, `/build`, `/verify`, `just omc gate run` or another step of `verify`; never a build or test beside
-  another.
+- Never run `/check`, `/build`, `/verify`, `just omc gate run` or another step of `verify`; never a build or test of
+  this run's beside another.
 - Never `needs_user` but for a design doubt (section 4), a path this run did not write (section 2), and a plan and a
   record that disagree unclearly: anything else the task meets (a finding of a tool outside the task, a budget, a
   warning) is named in the report and the task goes on to `done`.

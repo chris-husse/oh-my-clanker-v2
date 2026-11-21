@@ -7,12 +7,14 @@ step skips its hardening.
 
 The records: `gate run <gate>` runs the project's own command `omc/bin/<gate>` at the root, or with a step file
 `omc/bin/<gate>.steps.yaml` its stale steps (steps.py, DVC deciding; `--full` all of them), its output passed through
-and teed to `.cache/omc/gates/<gate>.log`; a full run (no ARGS, or a step file's `--full`) that exits 0 and started on
-a clean tree (`just omc git clean`) is a pass, `.cache/omc/passes/<gate>/<HEAD sha>.json` `{"gate", "head", "at"}`;
+and teed to `.cache/omc/gates/<gate>.log`, its exit code written beside it to `.cache/omc/gates/<gate>.exit` when
+it ends (removed at its start, so that a run started detached is polled by those two files); a full run (no ARGS, or a
+step file's `--full`) that exits 0 and started on a clean tree (`just omc git clean`) is a pass, `.cache/omc/passes/<gate>/<HEAD sha>.json` `{"gate", "head", "at"}`;
 a removed one is a gate not passed. A run first takes one of the gate's machine-wide slots (concurrency.py, `concurrency` of omc/config.yaml),
 waiting in line when all are held; then the command runs in its own session, and with a `silence` limit for the gate
 a run that writes no byte for that many seconds is ended as a whole process group (SIGTERM, SIGKILL 10 s later),
-`no output for <s> s: killed`, exit 124; the time spent waiting for a slot is not counted. A SIGTERM or SIGHUP
+`no output for <s> s: killed`, exit 124 (a command that has exited while a process it left behind holds the
+output keeps its own code); the time spent waiting for a slot is not counted. A SIGTERM or SIGHUP
 to the run ends that group too (`_stop`), exit 128 + the signal. The owner's skip of a gate is
 `.cache/omc/skips/<HEAD sha>`, one gate per line; a review `.cache/omc/reviewed/<HEAD sha>.json` and a settled design
 `.cache/omc/settled/<HEAD sha>.json`, each `{"head": "<sha>", "at": "<iso time>"}`. Every
@@ -46,11 +48,15 @@ GATE_NOTES = ('omc/bin/*.md',)  # the gates' notes
 
 
 def gate_keep(paths):
-    return (paths.briefs, paths.plans), paths.screenshots + paths.baselines + GATE_NOTES
+    """The shots' verdicts and the owner's screenshot reviews (`Paths.verdicts`, `Paths.screen_reviews`) hold the
+    review and the passed gate, so that `/audit`'s `screens` step amends them into the commit over both; the shots
+    themselves are `paths.screenshots`, which the review holds too."""
+    return ((paths.briefs, paths.plans, paths.verdicts, paths.screen_reviews),
+            paths.screenshots + paths.baselines + GATE_NOTES)
 
 
 def review_keep(paths):
-    return (paths.briefs,), paths.baselines
+    return (paths.briefs, paths.verdicts, paths.screen_reviews), paths.screenshots + paths.baselines
 
 
 def settled_keep(paths):
@@ -164,15 +170,17 @@ def _signal_group(proc, sig):
 
 
 def _end_group(proc, chunks, out):
-    """Ends [proc]'s process group: SIGTERM, then SIGKILL once [GRACE] seconds passed without the command ending;
-    what it still writes meanwhile goes to [out]."""
+    """Ends [proc]'s process group: SIGTERM, then SIGKILL once [GRACE] seconds passed without the command ending and
+    its output closing; what it still writes meanwhile goes to [out]."""
     _signal_group(proc, signal.SIGTERM)
     deadline = time.monotonic() + GRACE
-    while proc.poll() is None and time.monotonic() < deadline:
-        _drain(chunks, out, 0.1)
+    open_ = True
+    while (proc.poll() is None or open_) and time.monotonic() < deadline:
+        open_ = _drain(chunks, out, 0.1)
     _signal_group(proc, signal.SIGKILL)  # the group's other members too, a server the gate started
     proc.wait()
-    _drain(chunks, out, 0.5)
+    if open_:
+        _drain(chunks, out, 0.5)
 
 
 STOPS = (signal.SIGTERM, signal.SIGHUP)  # a stop of the run itself, as a terminal stopping its background task
@@ -217,7 +225,8 @@ def _drain(chunks, out, wait):
 def _run(argv, root, out, quiet):
     """Runs [argv] at [root] in its own session, its stdout and stderr to [out] as they come; its exit code, or SILENT
     once [quiet] seconds (None: never) passed without a byte, the session ended (`_end_group`) and `no output for <s>
-    s: killed` written. A stop of ours (`_stoppable`) or an interrupt ends the session too, and is raised again.
+    s: killed` written. A command that has exited while a process it left in its group still holds the pipe keeps
+    its own code: at the end of the silence that group is ended, with no kill line. A stop of ours (`_stoppable`) or an interrupt ends the session too, and is raised again.
     Refused when [argv] cannot start."""
     chunks = queue.Queue()
     try:
@@ -241,7 +250,7 @@ def _run(argv, root, out, quiet):
             try:
                 chunk = chunks.get(timeout=wait)
             except queue.Empty:
-                killed = True
+                killed = proc.poll() is None  # else the command exited and what it left behind holds the pipe
                 _end_group(proc, chunks, out)
                 break
             if chunk is None:
@@ -308,6 +317,35 @@ def _run_steps(root, gate, found, full, out, quiet):
 
 
 def gate_run(root, gate, args=()):
+    """`_gate_run`, its exit code also written to `.cache/omc/gates/<gate>.exit` once it ends (the code and a
+    newline: 2 for a refusal, whose `error: <why>` is the log's last line, 128 + the signal for a stop), that file removed and the log
+    emptied at the start: a caller that started the run detached polls the log and that file."""
+    logs = os.path.join(root, LOGS)
+    log, exit_file = os.path.join(logs, f'{gate}.log'), os.path.join(logs, f'{gate}.exit')
+    os.makedirs(logs, exist_ok=True)
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(exit_file)
+    open(log, 'wb').close()
+    code = 1
+    try:
+        code = _gate_run(root, gate, args)
+        return code
+    except Refused as e:
+        code = 2
+        with open(log, 'ab') as f:
+            f.write(f'error: {e}\n'.encode())
+        raise
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+        raise
+    except KeyboardInterrupt:
+        code = 128 + signal.SIGINT
+        raise
+    finally:
+        _write_atomic(exit_file, f'{code}\n')
+
+
+def _gate_run(root, gate, args=()):
     """Runs the gate [gate] at [root], its output passed to our stdout and teed into `.cache/omc/gates/<gate>.log`
     (truncated); its exit code. Without a step file it runs `omc/bin/<gate> [args]`; with one
     (`omc/bin/<gate>.steps.yaml`, steps.py) its stale steps, or with `--full` all of them (`_run_steps`), no other

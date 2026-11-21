@@ -52,8 +52,9 @@ protected documents it changed (the screenshots aside). With `paths.protected` e
 
 ## 3. What the branch touches
 
-- **Its entries**: `just decisions list`, and `just decisions show <n>` for each. After the rebase's trim the log
-  holds the branch's entries and no other.
+- **Its entries**: `just decisions list --branch`, and `just decisions show <n>` for each. After the rebase's trim the
+  log still holds `<base>`'s deferred entries, left for a later branch: `--branch` leaves them out (but one the branch
+  took in and applied).
 - **Its record and plan**: the `*-design.md` of `paths.specs` and `*-plan.md` of `paths.plans` the branch added since
   `<new base>`, and their rows in the section "Decisions and the pages they change":
 

@@ -52,9 +52,13 @@ It prints one hash and no status line: the record is committed as it is. No hash
 - **The plan rule** decides the order. A plan written from a record with the section "Decisions and the pages they
   change" begins with these tasks, then the feature's own code: (1) one task per entry, in id order,
   `/apply-decision <n>` in a fresh agent and one commit each; (2) `just links-check` and `/reconcile-links`. Every task
-  carries its `Complexity:` line and is gated by the check gate after it; a plan with the header line `Gate: build` (a
-  branch that changes nothing of what the project's check gate tests) is gated by the build gate and the omc tool tests
-  after each task instead, and by the check gate once at the end of the implementation phase. An apply task whose agent
+  carries its `Complexity:` line and is gated by the check gate after it; a plan with the header line `Gate: build` is
+  gated by the build gate and the omc tool tests after each task instead, and by the check gate once at the end of the
+  implementation phase. The plan has that line when the branch changes no file of the project's product: with
+  `paths.product` of `omc/config.yaml` (the globs of what the project ships), no file the record's work and the
+  plan's tasks change matches one of them (a tool, a document, a test of the tooling are not the product); without
+  it, the branch changes nothing of what the project's check gate tests. A branch that changes a product path after
+  all is gated by the check gate from then on (`just omc plan --next` gives `check` for it). An apply task whose agent
   stops on a passage the decision does not settle leaves the entry recorded and takes the doubt through the answer-doubt
   skill, as any doubt of the build; the review-decisions skill at the end of the implementation phase carries the entry
   that replaces it.

@@ -51,11 +51,12 @@ never put straight to the owner:
   it works from implementation on: the docs first, an independent agent answers too, the question goes to the run's
   question file with the picked answer. Both agree: the ruling is recorded through `/record-decision` at once with
   `Automated: true`, its `Context` saying it was ruled by the agreement of `/answer-doubt`'s two answers, and the run
-  acts on it. They disagree and the question can be deferred (the run can go on on the picked answer, or around it): it
-  stays open in the question file and the run goes on; `/audit` › `verify` poses it before the push.
-- **Only a disagreement that blocks the run, and has a solid reason to** (nothing of the design can go on without it),
-  goes to the owner at once, its options each with what it produces and the pick recommended; their ruling is recorded
-  through `/record-decision`.
+  acts on it. They disagree: the run acts on its pick all the same, recorded at once through
+  `/record-decision --disagreed` (`Automated: disagreed`), and goes on; the owner rules it after their screenshot
+  review in `/audit` (`push`, through `/review-decisions`), confirmed or overruled.
+- **The limit** (`/answer-doubt` step 6): the sixth disagreed entry not yet ruled stops the run there; the owner is
+  asked about all six in the conversation, one at a time, each ruling recorded at once, and the run goes on. It is the
+  only question the run puts to them before their screenshot review.
 
 Stops that are not questions (a hard stop, a `failed`, a refused tool, a path the session did not write) still go to
 the owner as each step says.
@@ -150,16 +151,16 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc enter design && {
      (`current` says nothing of a pending impact).
    - `needs_user`: a ruling. An entry `resolve` refused, or two sides whose intents exclude each other (the terminal
      merges every other conflicted file itself, both sides kept; never an option to drop a side, merge by hand or
-     abort), is the owner's (a blocking question with its solid reason, the one kind `fresh` puts to them at once):
-     their ruled option goes back to ▣ rebase as its `answer`, and the terminal applies it and continues the paused
-     rebase (never `git rebase --abort` or `--skip` by this session; an abort is the owner's own command, when an option
-     they take says so). Uncommitted paths after a continued paused rebase: to the owner, the paths named; while a
-     rebase is paused (the test of `fresh`'s first command), never a commit, a restore or a `reset --keep` by this
-     session; once no rebase is paused, they are committed by name as item 4 says (its two kinds; any other path
-     theirs), then ▣ rebase again with `answer: none`. A refused or red log step (`renumber`, `trim`, `check`): to the
-     owner, the lines quoted; a bad base is fixed, never worked around. The question of a rebase the tool did not start
-     (no mark) carries its literal shas: the option `old_base <sha>, new_base <sha>` is item 6 on those two shas, with
-     no second rebase; `read no impact` is item 7.
+     abort), is the owner's (the project's `AGENTS.md`, its rebase-conflict rule: "Only an entry `resolve` refuses, or
+     two sides whose intents exclude each other … go to the owner"): their ruled option goes back to ▣ rebase as its
+     `answer`, and the terminal applies it and continues the paused rebase (never `git rebase --abort` or `--skip` by
+     this session; an abort is the owner's own command, when an option they take says so). Uncommitted paths after a
+     continued paused rebase: to the owner, the paths named; while a rebase is paused (the test of `fresh`'s first
+     command), never a commit, a restore or a `reset --keep` by this session; once no rebase is paused, they are
+     committed by name as item 4 says (its two kinds; any other path theirs), then ▣ rebase again with `answer: none`.
+     A refused or red log step (`renumber`, `trim`, `check`): to the owner, the lines quoted; a bad base is fixed, never
+     worked around. The question of a rebase the tool did not start (no mark) carries its literal shas: the option
+     `old_base <sha>, new_base <sha>` is item 6 on those two shas, with no second rebase; `read no impact` is item 7.
    - `failed`: to the owner, with its reason.
 6. **The impact reading.** The old merge-base is the mark (`just omc impact`), or the `old_base` the owner took in
    item 5; none: item 7. The branch holds a record (`record` found it), so ▣ impact, role `orchestrator`:
@@ -233,8 +234,8 @@ edits the record only and commits nothing. ✓ `git hash-object -- <record>` aga
 - Each `QUESTION` block, one at a time (`question 1 of 3`), is taken as "From `/design` on" says, its pick the answer
   weighed first. A ruling that changes a rule or a protected document is recorded through `/record-decision` (the next
   run folds it, and this step runs again within the cap); any other answer changes the record's design only, and this
-  session writes it into the section the block names. A question left open in the question file (deferred) does not hold
-  the step: the work goes on on its picked answer.
+  session writes it into the section the block names. A disagreement acted on and recorded `disagreed` does not hold
+  the step: the work goes on on its picked answer, and the owner rules it after their screenshot review.
 - `changed` with `edits: material`: this step again, unless this was the third pass.
 - `changed` with `edits: cosmetic`, or `unchanged`: on to `consistency`, the edits kept. Its `QUESTION` blocks are taken
   either way, each ruling handled as above, and a ruling that changes the record sends this step again, unless this was
@@ -246,7 +247,9 @@ edits the record only and commits nothing. ✓ `git hash-object -- <record>` aga
 
 ## `consistency` — check the entries against each other, the record and the protected documents.
 
-Skip when `just omc settled`, or when `just decisions list` prints no entry (on to `integrity`).
+Skip when `just omc settled`, or when `just decisions list --branch` prints no entry and the record's section
+"Decisions and the pages they change" has no row (on to `integrity`): `<base>`'s deferred entries, which the plain
+`list` shows too, are not the branch's.
 
 Its pass counted as in `harden` (`just omc pass consistency`); it prints the role `orchestrator` on every pass, the
 orchestrator's model (`fable` is for ▣ harden's first pass only):
@@ -278,15 +281,14 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just design-integrity-chec
 ```
 
 It prints one `PROBLEM: <check>: <detail>` line per break, `<check>` one of `decisions check`, `record`,
-`links-check`, `guard`, then `OK` or `<k> problems`. The `questions` check waits for the push gate: with
-`--phase design` an open question in a question file is no problem here (it stays deferred; `/audit` › `verify`
-poses it).
+`links-check`, `guard`, then `OK` or `<k> problems`. The `questions` and `disagreed` checks wait for the push gate:
+with `--phase design` an open question in a question file and an entry recorded `disagreed` are no problem here (the
+owner rules them after their screenshot review, in `/audit`'s `push`).
 
 - **A `record` line, or a `links-check` line in the record**: back to `harden`, its `problems` those lines. The same
-  line again after a `harden` that returned `unchanged`: hardening did not settle it, a blocking question with its solid
-  reason, and the owner is offered the stop explicitly, each option with what it produces: harden again with it; or call
-  the design settled and leave the line standing ("The loop"), in this session or, on a restart, by typing
-  `/design integrity`.
+  line again after a `harden` that returned `unchanged`: hardening did not settle it, a stop, and the owner is offered
+  it explicitly, each option with what it produces: harden again with it; or call the design settled and leave the line
+  standing ("The loop"), in this session or, on a restart, by typing `/design integrity`.
 - **A `guard` line**: a protected document changed before implementation, a stray edit, whose one remedy here is the
   restore, making the page equal the merge-base (`<page>` the page the line names: edited, deleted, renamed, added,
   staged or untracked alike). First the message shows what the restore removes, the page's diff against the merge-base
@@ -334,14 +336,14 @@ poses it).
 **Green** (`OK`). What the commit holds: the log and the question files, the record, and the pages a restore staged:
 
 ```bash
-ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions list; git status --porcelain -- <log> <questions> <record>; echo 'staged restores:'; git diff --cached --name-only -- <protected>…; echo 'restored:'; sort -u .cache/omc/restored 2>/dev/null)
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions list --branch; git status --porcelain -- <log> <questions> <record>; echo 'staged restores:'; git diff --cached --name-only -- <protected>…; echo 'restored:'; sort -u .cache/omc/restored 2>/dev/null)
 ```
 
 With `paths.protected` empty no page can be restored: the `staged restores:` part is left out of the command (a
 `git diff` with no pathspec would list every staged path). Nothing listed in the first three parts: no commit. Otherwise
-one commit, by name, `<k>` the entries `just decisions list` printed. The staged restores go only into the commit's
-pathspec, never into `git add` (the restore staged them, and `git add` fails on a page it deleted); a staged restore
-alone is a commit too. Every page of `restored:` is named in one more paragraph,
+one commit, by name, `<k>` the entries `just decisions list --branch` printed. The staged restores go only into the
+commit's pathspec, never into `git add` (the restore staged them, and `git add` fails on a page it deleted); a staged
+restore alone is a commit too. Every page of `restored:` is named in one more paragraph,
 `-m "Restored from the merge-base: <page>, …"`, before the `Co-Authored-By` line; a page there that is not a staged
 restore (HEAD and the merge-base both lack it: it was untracked, or only staged) is named in that paragraph only and
 never put into the pathspec, since `git commit --` fails on a path git does not know. With `restored:` empty, that
@@ -410,7 +412,8 @@ one they leave standing is named in the commit's message (one more paragraph,
 - Never edit a protected document (a file matched by `paths.protected`) or code. The one exception, `integrity`'s
   restore of a stray edit, removes a change and edits nothing; never a page restored whose diff no message has shown.
 - Never write the log but through `just decisions` and `/record-decision`; never record a decision but the owner's
-  ruling or the agreement of `/answer-doubt`'s two answers (`Automated: true`).
+  ruling, the agreement of `/answer-doubt`'s two answers (`Automated: true`) or its pick acted on although they
+  disagreed (`Automated: disagreed`).
 - Never put a question to the owner but one "From `/design` on" sends to them.
 - Never apply an entry: that is the plan's.
 - Never `git add -A` or `git add .`.

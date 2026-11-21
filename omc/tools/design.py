@@ -8,8 +8,10 @@ start waits in line on the primary's `.cache/omc/design.lock` and never fails. T
 its shell before any Python: this process is already the pulled `design.py`, run from the primary's pulled justfile
 (`_design-start`), and never re-execs. The lock covers the primary's check again, a pull (`git fetch` and
 `git merge --ff-only` of `origin/<base>`) that is normally a no-op (a move it finds, a merge landed since the recipe's
-pull, is one `[warn]` and the start goes on with the code it started with), the GitNexus install and the refresh of
-the primary's index at the pulled tip, and the worktree cut. Neither GitNexus step refuses the start: a failure is
+pull, is one `[warn]` and the start goes on with the code it started with), and the worktree cut. After its release,
+the GitNexus install and the refresh of the primary's index at the pulled tip, under their own lock taken without
+waiting (held by another start: left to it), so that no start waits in line behind a refresh. Neither GitNexus step
+refuses the start: a failure is
 `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha>`. `feature/<slug>` is cut from
 `origin/<base>` with worktrunk, or entered again when the branch exists; after the release the context goes to
 `<worktree>/.cache/omc/brief.md`. Base and branch prefix come from omc/config.yaml; Claude only, no provider option.
@@ -18,10 +20,15 @@ Then the launch as omc's: on macOS the fish title hook's conf.d copy is reconcil
 (`notify.wire_worktree`, `preferredNotifChannel: auto`, never blocking); the environment takes the `uv` venv out
 (`VIRTUAL_ENV` and its `bin` on `PATH`) and sets `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`, `OMC_SLUG=<slug>` and
 `OMC_PROVIDER=claude` (the slug's `claude -p` gets the first only); then the process becomes the interactive shell of
-`$SHELL`'s basename (fish, zsh, bash, else sh, `shells.py`) in the worktree, titled `<branch>`, its herdr exit report
+`$SHELL`'s basename (fish, zsh, bash, else sh, `shells.py`) in the worktree, titled `<branch>` (inside herdr its tab
+labelled `<slug>` first, `herdr.name_tab`, a failure a `[warn]`), its herdr exit report
 the origin, which runs `claude -n <slug> [--model <orchestrator-model>] '/brainstorm .cache/omc/brief.md'`, under
 `direnv exec .` when `direnv version` runs. A first argument `--origin=<dir>` (the `design` recipe's
-`invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's. The standard library and pyyaml (config.py), through the justfile's
+`invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's.
+`--deferred <ids>` (a later branch picking up rulings left deferred on the base, `just omc todos`) takes the
+brief from the deferred entries of `origin/<base>`'s log (`# Deferred rulings <ids>`, then each entry's title, Context
+and Decision; an id unknown there or not deferred is refused before the lock), its slug asked of `claude -p` as for
+free text; then the start goes on as with a brief. The standard library and pyyaml (config.py), through the justfile's
 `uv run`; exit 2 with `error: <why>` on every refusal."""
 import fcntl
 import json
@@ -38,6 +45,7 @@ sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import config  # noqa: E402
 import fish_integration  # noqa: E402
 import gitnexus  # noqa: E402
+import herdr  # noqa: E402
 import notify  # noqa: E402
 import repo  # noqa: E402
 import shells  # noqa: E402
@@ -48,12 +56,14 @@ from toolctx import Ctx, OmcError  # noqa: E402
 Refused = config.Refused  # exit 2, `error: <why>`
 
 LOCK = os.path.join('.cache', 'omc', 'design.lock')
+GITNEXUS_LOCK = os.path.join('.cache', 'omc', 'gitnexus.lock')  # the refresh's, outside the start's
 BRIEF = os.path.join('.cache', 'omc', 'brief.md')
 SESSION = '/brainstorm .cache/omc/brief.md'
 PROVIDER = 'claude'
 TITLE_OFF = {'CLAUDE_CODE_DISABLE_TERMINAL_TITLE': '1'}  # omc's claude provider's `title_env`
 KEBAB = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
 SLUG_FORM = re.compile(r'^[a-z0-9]+(-[a-z0-9]+){2,5}$')  # three to six words
+DEFERRED_IDS = re.compile(r'^\d+(,\d+)*$')
 NOTHING = 'nothing to start: `just design <brief-or-text>`, a brief ({briefs}<name>.md) or a sentence'
 PROMPT = ('Reply with only a git branch slug for this piece of work: kebab-case, three to six lowercase ASCII words or '
           'numbers, nothing else. The work: {text}')
@@ -91,14 +101,53 @@ def slug_of(args, ask, briefs=config.Paths().briefs):
     text = ' '.join(args).strip()
     if not text:
         raise Refused('nothing to start: the text is empty')
+    return ask_slug(text, ask), text + '\n'
+
+
+def ask_slug(text, ask):
+    """The slug [ask] (a callable of the prompt) gives for [text], asked once more when its form is wrong, then
+    refused."""
     answers = []
     for _ in range(2):
-        answer = ask(PROMPT.format(text=text)).strip()
+        answer = ask(PROMPT.format(text=text.strip())).strip()
         if SLUG_FORM.match(answer):
-            return answer, text + '\n'
+            return answer
         answers.append(answer)
     raise Refused('claude gave no slug of three to six kebab-case words, twice: '
                   + ', '.join(repr(a) for a in answers))
+
+
+def deferred_ids(args):
+    """The ids of `--deferred <ids>` or `--deferred=<ids>` (comma-separated numbers, nothing after them), or None
+    when [args] does not start with `--deferred`."""
+    if not args or not (args[0] == '--deferred' or args[0].startswith('--deferred=')):
+        return None
+    words = [args[0][len('--deferred='):]] + args[1:] if args[0] != '--deferred' else args[1:]
+    if len(words) != 1 or not DEFERRED_IDS.match(words[0]):
+        raise Refused('--deferred takes one list of entry ids, comma-separated (`just design --deferred 42,57`)')
+    return [int(n) for n in words[0].split(',')]
+
+
+def deferred_brief(primary, base, ids, log_path):
+    """The brief of the deferred entries [ids] of `origin/<base>`'s log, [log_path] (`paths.decision_log`):
+    `# Deferred rulings <ids>`, then per entry `## <n>. <title>` and its Context and Decision. Refused when main's
+    log is not there, or an id names no entry of it or one that is not deferred (recorded, or applied)."""
+    sys.path.append(os.path.join(HERE, 'decisions'))  # decisions
+    import decisions
+    r = repo.git(primary, 'show', f'origin/{base}:{log_path}')
+    if r.returncode != 0:
+        raise Refused(f'origin/{base} holds no {log_path}: {repo.why(r)}')
+    log = decisions.parse_log(r.stdout)
+    parts = [f'# Deferred rulings {", ".join(str(n) for n in ids)}']
+    for n in ids:
+        e = log.entries.get(n)
+        if e is None:
+            raise Refused(f'decision {n} is not in the log of origin/{base}')
+        if e.status != decisions.Status.DEFERRED:
+            raise Refused(f'decision {n} is not deferred on origin/{base}: {e.fields.get("Status", "no status")}')
+        parts.append(f'## {n}. {e.title}\n\n**Context.** {e.fields.get("Context", "")}\n'
+                     f'**Decision.** {e.fields.get("Decision", "")}')
+    return '\n\n'.join(parts) + '\n'
 
 
 def say(text, end='\n'):
@@ -214,9 +263,23 @@ def lock(primary):
 
 
 def gitnexus_steps(cfg, primary):
-    """The install, then the refresh of the primary's index at its HEAD; neither refuses the start: a failure is its
-    step's `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha or "no index">` (a failed
-    install skips the refresh)."""
+    """The install, then the refresh of the primary's index at its HEAD, after the start's lock is released and under
+    the primary's own `.cache/omc/gitnexus.lock`, taken without waiting: held by another start, which refreshes the
+    same index, both are left to it (`→ GitNexus: another start is refreshing the index [ok]`). Neither refuses the
+    start: a failure is its step's `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha or "no
+    index">` (a failed install skips the refresh)."""
+    path = os.path.join(primary, GITNEXUS_LOCK)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'a') as held:
+        try:
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            say('→ GitNexus: another start is refreshing the index [ok]')
+            return
+        _gitnexus_steps(cfg, primary)
+
+
+def _gitnexus_steps(cfg, primary):
     try:
         with step(f'GitNexus: checking the build at {cfg.gitnexus_commit[:7]}', long=True) as s:
             gitnexus.install(cfg, s.say)
@@ -311,8 +374,12 @@ def main(argv=None):
         primary = gitnexus.primary_root('.')
         with step(f'primary: on {cfg.base}, clean, not diverged', quick=True):
             check_primary(primary, cfg.base)
+        ids = deferred_ids(args)
+        if ids is not None:
+            with step(f'deferred: decisions {", ".join(str(n) for n in ids)} of origin/{cfg.base}', quick=True):
+                text = deferred_brief(primary, cfg.base, ids, cfg.paths.decision_log)
         with step('slug', quick=True) as s:
-            slug, text = slug_of(args, ask_claude, cfg.paths.briefs)
+            slug, text = (ask_slug(text, ask_claude), text) if ids is not None else slug_of(args, ask_claude, cfg.paths.briefs)
             s.what = f'slug: {slug}'
         branch = cfg.branch_prefix + slug
         if sys.platform == 'darwin':
@@ -325,7 +392,6 @@ def main(argv=None):
                 s.what += f' {before[:7]} → {after[:7]}' if before != after else f' {after[:7]} (current)'
                 if before != after:  # the recipe's shell pulled moments ago: a merge landed since
                     s.warn(f'{cfg.base} moved since the start\'s pull: running the code it started with')
-            gitnexus_steps(cfg, primary)
             exists = repo.git(primary, 'show-ref', '--verify', '--quiet', f'refs/heads/{branch}').returncode == 0
             what = f'entering {branch}' if exists else f'creating {branch} from origin/{cfg.base}'
             with step(f'worktree: {what}'):
@@ -333,6 +399,7 @@ def main(argv=None):
         finally:
             held.close()
         say('→ lock: released [ok]')
+        gitnexus_steps(cfg, primary)
         brief = os.path.join(path, BRIEF)
         try:
             os.makedirs(os.path.dirname(brief), exist_ok=True)
@@ -345,6 +412,9 @@ def main(argv=None):
             say(f'→ notifications: {", ".join(wired)} [ok]')
         env = launch_env(os.environ, slug)
         argv = startup(slug, cfg.orchestrator_model, has_direnv(env))
+        named = herdr.name_tab(Ctx.from_env(env), slug)  # the tab beside the title; None outside herdr
+        if named is not None:
+            say(f'→ herdr tab: {slug} ' + ('[ok]' if named else '[warn] herdr tab rename failed'))
         shell = shells.detect_shell(env)
         say(f'→ session: starting {shell.name} on claude "{SESSION}"')
         os.environ.clear()

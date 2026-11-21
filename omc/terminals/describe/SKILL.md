@@ -17,9 +17,9 @@ in `paths.specs` of `omc/config.yaml`. `brief:` `<briefs><slug>.md`, the brief t
 **It writes the message only.** It edits no file, changes no protected document, writes no entry and no question file,
 and runs no build, no test and no gate. Its only writes are the message file `.cache/omc/describe.md`, the amend of the
 commit's message and, with a brief, its removal. Its only `just` commands are `just omc git one-commit`,
-`just omc record`, `just omc gate passed`, `just omc reviewed`, `just decisions list` and `just decisions show`; the
-gates are read, never run. An amended message or a removed brief leaves the gates' passes and the review standing (they
-are compared by what changed, and the briefs are a path they keep).
+`just omc record`, `just omc gate passed`, `just omc reviewed`, `just omc shots accepted`, `just decisions list` and
+`just decisions show`; the gates are read, never run. An amended message or a removed brief leaves the gates' passes
+and the review standing (they are compared by what changed, and the briefs are a path they keep).
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`; a value a
 command printed is written out in the next one.
@@ -44,14 +44,20 @@ fails) removes nothing.
 
 The real change, not only the messages:
 
-- `git log -1 --format=%B`: the squashed commit's message (the messages of the work, the shots' judgements of
-  `screens-judge`, the trailers). `screens-judge` appends a `Shots:` block at each run that committed shots: only the
-  last block is current, and it alone is carried into the description.
+- `git log -1 --format=%B`: the squashed commit's message (the messages of the work, the trailers).
+- The changed shots and their verdicts: the branch's yaml, the path `just omc shots path` prints
+  (`<paths.questions>shots/<slug>.yaml`, `<slug>` the branch without `branch_prefix` of `omc/config.yaml`), which
+  ▣ screens-assess wrote and the owner's review completed: per shot its id, its `bucket` (`unexpected`, `expected`),
+  `verdict`, `reason`, `cause` and the owner's `review`; and whether every current row is accepted, `just omc shots
+  accepted`. No yaml: no shot differs from the base, and the description says nothing of shots. The files of the
+  review's rounds (`<paths.questions>screens/<date>-<slug>-<n>.md`) name the owner's comments.
 - `git diff --stat $(git merge-base HEAD origin/<base>) HEAD` for its shape, then the diff itself for whatever the
   messages do not explain.
 - The record given (`just omc record` lists the branch's records): its title, its "Context and goal", its decisions.
-- The decisions applied: `just decisions list` (the log holds the branch's entries only), `just decisions show <n>`
-  where a title is not enough.
+- The decisions applied and deferred: `just decisions list` (the log holds the branch's entries and the deferred ones
+  still on `<base>`), its status `applied` or `deferred`, `just decisions show <n>` where a title is not enough. The
+  branch's deferred rulings are those it recorded and deferred (not on `origin/<base>`'s log:
+  `git show origin/<base>:<paths.decision_log>`).
 - The gates passed: `just omc gate passed check`, `just omc gate passed verify`, `just omc reviewed`, each answer as
   the tool gives it (a pass, or a skip by the owner, said as such).
 - The repository's style: `git log --no-merges --format=%s -20 origin/<base>`.
@@ -66,8 +72,10 @@ Written to `.cache/omc/describe.md` (`mkdir -p .cache/omc` first):
 - A blank line.
 - **The body**, Markdown: what changed and why (the goal, the design's main choices, what changed, by area); the
   record's path; the decisions applied, one line each, `decision <n>: <title>`, or "no decision on this branch"; the
-  gates passed, as the tools answered; the changed screenshots and their judgements, from the last `Shots:` block, when
-  the message holds one.
+  branch's deferred rulings, one line, `Deferred rulings: 57, 61 — <title>; <title>` (left on `<base>` unapplied, for a
+  later branch), when it has any; the gates passed, as the tools answered; the changed screenshots, from the yaml, when
+  there is one: the counts per bucket, then each unexpected shot and each group of expected ones with its verdict and
+  reason, and the owner's review (`accepted`, or what their comment became).
 - The trailers of the old message (`Co-Authored-By:` lines), kept at its end.
 
 Scale it to the change: a few lines for a small one, a page at most for a large one. Never claim a test, a gate or a

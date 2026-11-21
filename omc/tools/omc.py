@@ -22,6 +22,8 @@ import lint  # noqa: E402
 import passes  # noqa: E402
 import rebase  # noqa: E402
 import repo  # noqa: E402
+import shots  # noqa: E402
+import todos  # noqa: E402
 
 MARKER = os.path.join('.cache', 'omc', 'current')
 RESUME = ('you are in /{skill} (omc/pipeline/{skill}/SKILL.md): read it again and start it at its first step; the '
@@ -112,6 +114,17 @@ def read(path):
         raise Refused(f'cannot read {path}: {e.strerror}') from None
 
 
+def product_gate(root, task):
+    """[task] (repo.next_task) with its gate `build` made `check` when `paths.product` lists globs and a path changed
+    since the merge-base (committed, in the tree or untracked: done.changed_paths) matches one, the first of them
+    under `product`; else [task] as it is (no `paths.product`: the plan's `Gate:` line stands)."""
+    globs = config.load(root).paths.product
+    if task['gate'] != 'build' or not globs:
+        return task
+    hits = [p for p in done.changed_paths(root, repo.merge_base(root)) or () if config.matches(p, globs)]
+    return {**task, 'gate': 'check', 'product': hits[:done.SHOWN]} if hits else task
+
+
 def plan(args):
     root = repo.root()
     if not args.next and args.tick is None:
@@ -124,7 +137,7 @@ def plan(args):
         if task is None:
             print(f'every task of {path} is ticked')
             return 1
-        print(json.dumps(task))
+        print(json.dumps(product_gate(root, task)))
         return 0
     try:
         ticked, count = repo.tick(text, args.tick)
@@ -230,6 +243,37 @@ def gitnexus_verb(args):
     return 0
 
 
+def shots_verb(args):
+    """`shots pairs [--base B]`: the pairs as JSON, exit 0; `shots accepted [--base B]`: `accepted` 0, or
+    `not accepted: <ids>` 1; `shots path`: the branch's verdicts, `<paths.questions>shots/<slug>.yaml`, exit 0. B
+    defaults to the merge-base with origin/<base>; the yaml is the branch's."""
+    root = repo.root()
+    path = shots.yaml_path(root)
+    if args.ask == 'path':
+        print(path)
+        return 0
+    base = args.base or repo.merge_base(root)
+    if args.ask == 'pairs':
+        print(json.dumps(shots.pairs(root, base, path)))
+        return 0
+    return answer(*shots.accepted(root, base, path))
+
+
+def todos_verb(args):
+    """`todos`: one line per item, `<source>\t<theme or ->\t<title>\t<path>\t<start>`; `--json` the list; exit 1
+    with none."""
+    found = todos.gather(repo.root())
+    if not found:
+        print('no open work found')
+        return 1
+    if args.json:
+        print(json.dumps(found))
+    else:
+        for i in found:
+            print('\t'.join((i['source'], i['theme'] or '-', i['title'], i['path'], i['start'])))
+    return 0
+
+
 def ported(args):
     """`title` and `shell-integration`, the ported helpers of omc 0.1.54 (title.py, fish_integration.py): they read no
     configuration and keep omc's own lines and codes, an expected failure `error: <why>` on stderr with its code (1, or
@@ -273,7 +317,9 @@ def parser():
         elif verb == 'plan':
             s = verbs.add_parser('plan', help='the plan the branch added and committed since the merge-base')
             which = s.add_mutually_exclusive_group()
-            which.add_argument('--next', action='store_true', help="the first task with a `- [ ]`, as JSON")
+            which.add_argument('--next', action='store_true', help="the first task with a `- [ ]`, as JSON; its gate the plan's "
+                               "`Gate:` line, `build` made `check` once the branch changes a path of "
+                               "paths.product (named under `product`)")
             which.add_argument('--tick', type=int, metavar='N', help="tick every `- [ ]` of task N; prints the count")
             s.set_defaults(handler=plan)
         elif verb == 'git':
@@ -293,7 +339,8 @@ def parser():
                                               'omc/bin/<gate>.steps.yaml its stale steps (DVC deciding; --full all), '
                                               'once one of the gate\'s '
                                               'machine-wide slots is free (config `concurrency`; output teed to '
-                                              '.cache/omc/gates/<gate>.log; with config `silence`, a run silent that '
+                                              '.cache/omc/gates/<gate>.log, the exit code to .cache/omc/gates/<gate>.exit '
+                                              'once it ends; with config `silence`, a run silent that '
                                               'long is killed, exit 124; exit 0 of a full run started on a clean '
                                               'tree records a pass; its exit code); passed: has the gate a pass, or '
                                               'the owner\'s skip, that holds for this tree; skip writes the owner\'s '
@@ -341,6 +388,19 @@ def parser():
                 a.add_argument('subject', metavar=subject)
                 a.add_argument('rest', nargs=argparse.REMAINDER, help="GitNexus's own options, passed through")
                 a.set_defaults(handler=gitnexus_verb)
+        elif verb == 'shots':
+            s = verbs.add_parser('shots', help="the changed shots' (paths.screenshots) (base, current) LFS pairs "
+                                               'with the rows of <paths.questions>shots/<slug>.yaml that hold, as '
+                                               "JSON; accepted: every pair's row `review: accepted`; path: that yaml's path")
+            s.add_argument('ask', choices=config.VERBS['shots'])
+            s.add_argument('--base', metavar='B', help='the commit to compare with (default: the merge-base with '
+                                                       'origin/<base>)')
+            s.set_defaults(handler=shots_verb)
+        elif verb == 'todos':
+            s = verbs.add_parser('todos', help='the known open work, each item with its source, title, theme and '
+                                               'the `just design` that starts it')
+            s.add_argument('--json', action='store_true', help='the items as one JSON list')
+            s.set_defaults(handler=todos_verb)
         elif verb == 'title':
             s = verbs.add_parser('title', help="pin or release this iTerm2 tab's title (quiet; the fish hook's helper)")
             sub = s.add_subparsers(dest='title_command', required=True, metavar='action', parser_class=Parser)

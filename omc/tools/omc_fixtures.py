@@ -2,8 +2,8 @@
 main holding omc/config.yaml, the caller's GIT_ variables removed and a private GIT_CONFIG_GLOBAL) with the git and
 `just omc` calls the cases make in it; `FakeGitNexus`, the fake fork, a temporary `HOME` and stub `node` and `npm`
 (no network, no real node). Imported by test_omc_repo.py, test_omc_rebase.py,
-test_omc_done.py, test_omc_design.py, test_omc_cli.py and test_omc_gitnexus.py, after they put this directory on the
-path; not a test of its own."""
+test_omc_done.py, test_omc_design.py, test_omc_cli.py, test_omc_gitnexus.py, test_omc_shots.py and test_omc_todos.py,
+after they put this directory on the path; not a test of its own."""
 import json
 import os
 import re

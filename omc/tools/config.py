@@ -4,7 +4,8 @@ orchestrator's model, the hand-off flag `ask_for_provider_handoff` (absent: fals
 the `gitnexus` pin, the fork's origin and full commit sha, the gates' `concurrency` (runs of a gate at once on the
 machine, absent: 1) and `silence` (seconds without output before a gate run is killed, absent: none), and
 `paths`, every path of the project the tools read (`Paths`; absent: the defaults, every glob list empty; `links`,
-the files links-check reads, absent: the protected ones).
+the files links-check reads, absent: the protected ones; `product`, what the project ships, absent: a plan's
+`Gate: build` is the plan writer's reading alone).
 Read with `yaml.safe_load`, so through the justfile's `uv run --frozen python -I` (pyyaml is pinned); the names every
 verb of `just omc` and `just design` share live here: `VERBS`, `PIPELINE`, `GATES`, `ROLES`."""
 import glob
@@ -18,7 +19,8 @@ import yaml
 VERBS = {'enter': (), 'record': (), 'plan': (), 'git': ('rebased-on', 'one-commit', 'clean'), 'rebase': (),
          'impact': (), 'gate': ('run', 'passed', 'skip'), 'reviewed': (), 'settled': (), 'models': (), 'handoff': (),
          'lint': (), 'gitnexus': ('install', 'refresh', 'query', 'context', 'impact', 'cypher'),
-         'title': ('set', 'release', 'apply'), 'shell-integration': ('fish',), 'pass': ('harden', 'consistency')}
+         'title': ('set', 'release', 'apply'), 'shell-integration': ('fish',), 'pass': ('harden', 'consistency'),
+         'shots': ('pairs', 'accepted', 'path'), 'todos': ()}
 # The four skills of omc/pipeline/, the words `just omc enter` takes
 PIPELINE = ('brainstorm', 'design', 'implement', 'audit')
 # The three gate terminals of omc/terminals/ that are also skills, /check, /build, /verify
@@ -52,7 +54,19 @@ class Paths:
     decision_log: str = 'docs/decision-log.md'
     questions: str = 'docs/reviews/'
     themes: tuple[str, ...] = ()  # the theme files (rule ids)
+    product: tuple[str, ...] = ()  # what the project ships: a branch changing none of it is gated by build (`Gate:`)
     links: tuple[str, ...] | None = None  # the files links-check reads (links_scope); absent: the protected ones
+    todos: tuple[str, ...] | None = None  # the files whose TODO/FIXME comments are open work; absent: product
+
+    @property
+    def verdicts(self):
+        """The folder of the shots' verdicts, one `<slug>.yaml` per branch (▣ screens-assess): `<questions>shots/`."""
+        return f'{self.questions}shots/'
+
+    @property
+    def screen_reviews(self):
+        """The folder of the owner's screenshot reviews, one file per round: `<questions>screens/`."""
+        return f'{self.questions}screens/'
 
 
 FOLDERS = ('briefs', 'specs', 'plans', 'questions')  # the `Paths` strings that name a folder

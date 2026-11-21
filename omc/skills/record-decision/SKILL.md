@@ -1,6 +1,6 @@
 ---
 name: record-decision
-description: "Record a ruling of the owner in the one log the moment it is made, in any flow (brainstorm, design, plan, implementation, audit, a review, a question file's answer), through `just decisions add-decision`. Edits no page; /apply-decision does that. Used by the AI whenever the owner has ruled, and for the agreement of /answer-doubt's two answers from /design on (Automated), never on the owner's word."
+description: "Record a ruling of the owner in the one log the moment it is made, in any flow (brainstorm, design, plan, implementation, audit, a review, a question file's answer), through `just decisions add-decision` (with --defer, then `just decisions defer`, for a ruling the owner deferred in the same answer). Edits no page; /apply-decision does that. Used by the AI whenever the owner has ruled, for the agreement of /answer-doubt's two answers from /design on (Automated), and for a pick acted on there although the two answers disagreed (disagreed); never on the owner's word."
 ---
 
 # Record a decision
@@ -9,9 +9,11 @@ The owner rules; the AI records. This skill is not run on the owner's word: the 
 has ruled, in whatever flow the ruling came up. A question answered during a brainstorm, `/design`, a plan, an
 implementation task, an audit, a review, or an answer to a question file's question that affects a rule or the design is
 a decision the moment it is answered. Its callers: `/pose-questions` after each answer, `/answer-doubt` for a page that
-lags a rule and, from `/design` on, for the agreement of its two answers (both `Automated` entries), and any flow where
-the owner rules in passing, a remark in a conversation included. Recording is not a step the owner authorizes, so it
-needs no lifecycle word; inside `/design`, `/implement` or `/audit` it is part of that skill's work.
+lags a rule and, from `/design` on, for the agreement of its two answers (both `Automated` entries) and for a pick acted
+on although its two answers disagreed (`Automated: disagreed`), the screenshot review of `/audit`'s `screens` for a
+ruling of a round, and any flow where the owner rules in passing, a remark in a conversation included. Recording is not
+a step the owner authorizes, so it needs no lifecycle word; inside `/design`, `/implement` or `/audit` it is part of
+that skill's work.
 
 It writes one entry into the log (`paths.decision_log` of `omc/config.yaml`) through the decision tool; the entry, the
 names `Affected` takes and the question file are in `omc/tools/decisions/FORMAT.md`; read it first. It edits no
@@ -35,7 +37,8 @@ numbers, one line each with the recommended default.
 
 - The ruling in the owner's words, as they gave it: their own sentence, or a picked option they confirmed (`ok` to a
   batch of `/pose-questions` confirms each picked answer in it). For an `Automated` entry, the docs' reading or the
-  answer `/answer-doubt`'s two answers agreed on, as that skill words it.
+  answer `/answer-doubt`'s two answers agreed on, as that skill words it; for a `disagreed` entry, the answer it picked
+  and acted on, with both answers.
 - Its context: what was asked, what was wrong, the passages it was asked about.
 - Where it came from: a question of a question file (`<date>-<branch-slug>-<n>.md` of `paths.questions`, `### Q<k> …`),
   an item of a review file, a section of a record (of `paths.specs`), or a remark in a conversation.
@@ -69,8 +72,18 @@ say what they meant.
   agreement of `/answer-doubt`'s two answers (its step 6): its `Context` says so, in the words "ruled by the agreement
   of `/answer-doubt`'s two answers", its `Decision` is the agreed answer, its `Source` the question of the run's
   question file. `just decisions list` shows the owner every such entry at the audit.
+- `--disagreed`: only inside `/design`, `/implement` or `/audit`, for an answer the run acted on although
+  `/answer-doubt`'s two answers disagreed (its step 6, "Act, record `disagreed`"): its `Context` holds the question,
+  both answers and that the independent agent disagreed, its `Decision` the picked answer, its `Source` the question
+  of the run's question file. It is not yet ruled: `just decisions pending` names it, and the push is red on it until
+  the owner rules it after their screenshot review.
 
-An owner's ruling is never `--automated`, however small.
+Never both flags: the tool refuses `--automated` with `--disagreed`. An owner's ruling is never `--automated` or
+`--disagreed`, however small. Their later ruling on a committed `disagreed` or `true` entry is never an `update` of it:
+they confirm it, `just decisions confirm <n>` (`disagreed` → `false`; a `true` entry they confirm changes nothing), or
+overrule it, their ruling recorded as a new entry `<m>` (no flag) and then `just decisions overrule <n> --by <m>`
+(`Automated: overruled by <m>`). `/pose-questions` and `/answer-doubt`'s limit run those two; this skill records the
+new entry.
 
 ## 4. Title
 
@@ -124,10 +137,10 @@ SOURCE="reviews/2026-01-05-incident-photos-1.md#Q3 A member's incident without a
   --affected "$AFFECTED" --source "$SOURCE")
 ```
 
-Add `--automated` only as step 3 says; leave out `--affected` for an empty set and `--source` for a remark in a
-conversation. The tool prints the id `<n>`, or refuses with `error: <why>` (an unknown name, a heading that does not
-exist) and writes nothing: fix the name or the heading (or drop a name you cannot place) and run again. Read the
-entry back:
+Add `--automated` or `--disagreed` only as step 3 says; leave out `--affected` for an empty set and `--source` for a
+remark in a conversation. The tool prints the id `<n>`, or refuses with `error: <why>` (an unknown name, a heading that
+does not exist) and writes nothing: fix the name or the heading (or drop a name you cannot place) and run again. Read
+the entry back:
 
 ```bash
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions show <n>)
@@ -135,6 +148,19 @@ ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions show <n>)
 
 and check that `Context` and `Decision` say what the owner said. A wrong entry no commit ever held is corrected with
 `just decisions update <n>`; a committed one is not edited: record a new one that replaces it (step 1).
+
+**`--defer`**: run with it when the owner deferred this ruling in the same answer that gave it (a ruling made after
+`/design`, which they chose to leave for a later branch: `omc/tools/decisions/FORMAT.md` › "The entry"). The entry is
+recorded as above, then deferred, recorded on the base branch unapplied for a later branch:
+
+```bash
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just decisions defer --id <n> && just decisions show <n>)
+```
+
+Its `Status` reads `recorded <date> · deferred <date>`; it is no longer pending and backs no page. Never on the
+session's word alone, never in the brainstorm or `/design` (design-stage rulings are applied), and never for an
+overruling entry (the `<m>` of `just decisions overrule <n> --by <m>`: it undoes work of this branch and is applied in
+it; the tool refuses it). A refusal of `defer` leaves the entry recorded: say so in the report.
 
 ## 8. The question file
 
@@ -158,10 +184,11 @@ with its pages. Report
 decision <n> recorded: <title>
 ```
 
-and that `/verify` stays red until it is applied: `just decisions pending` names it until it is applied with
-`/apply-decision <n>`: by an apply task of the plan when it was recorded before implementation (`/design`'s `harden`
-folds it into the record first), or by `/review-decisions` (at the end of `/implement`, or on its own). Then go back to
-the flow that called this skill.
+(`decision <n> recorded and deferred: <title>` with `--defer`, which is then no longer pending, applied on a later
+branch) and, for a recorded one, that `/verify` stays red until it is applied: `just decisions pending` names it until
+it is applied with `/apply-decision <n>`: by an apply task of the plan when it was recorded before implementation
+(`/design`'s `harden` folds it into the record first), or by `/review-decisions` (at the end of `/implement`, or on its
+own). Then go back to the flow that called this skill.
 
 ## Never
 
@@ -170,8 +197,10 @@ the flow that called this skill.
 - Never change a committed entry; a wrong one gets a new entry. An entry no commit ever held changes only through
   `just decisions update` or `remove`.
 - Never record a ruling the owner did not give, or add to their words what they did not say; the one exception is an
-  `Automated` entry of step 3 (the docs' reading, or the agreement of `/answer-doubt`'s two answers from `/design`
-  on), which says so in its `Context`.
-- Never pass `--automated` for an owner's ruling.
+  `Automated` or `disagreed` entry of step 3 (the docs' reading, the agreement of `/answer-doubt`'s two answers from
+  `/design` on, or a pick acted on there although they disagreed), which says so in its `Context`.
+- Never pass `--automated` or `--disagreed` for an owner's ruling, and never both flags.
+- Never `update` a committed entry for the owner's later ruling on it: `confirm`, or a new entry and `overrule`.
 - Never wait for the owner's word to record a ruling they gave; never ask them whether to record it.
 - Never commit; never start `/apply-decision` on your own.
+- Never `--defer` a ruling the owner did not defer, a ruling of the brainstorm or `/design`, or an overruling entry.

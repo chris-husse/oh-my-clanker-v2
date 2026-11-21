@@ -113,7 +113,8 @@ def write_exe(path, text):
     os.chmod(path, 0o755)
 
 
-class DesignTest(unittest.TestCase):
+class DesignCase(unittest.TestCase):
+    """The case's repository, fakes and helpers; the tests are DesignTest's and Deferred's."""
 
     def setUp(self):
         self.repo = Repo.make_repo()
@@ -141,7 +142,8 @@ class DesignTest(unittest.TestCase):
         self.repo.git('push', '-q', 'origin', 'main')
         self.path = os.pathsep.join((self.bin_dir, self.fake.bin, os.environ['PATH']))
         self.env = self.fake.env(self.repo.env, path=self.path)
-        for name in (*LAUNCH_VARS, 'VIRTUAL_ENV', 'TERM_PROGRAM', 'LC_TERMINAL', 'ITERM_SESSION_ID'):
+        for name in (*LAUNCH_VARS, 'VIRTUAL_ENV', 'TERM_PROGRAM', 'LC_TERMINAL', 'ITERM_SESSION_ID', 'HERDR_TAB_ID',
+                     'HERDR_BIN_PATH'):
             self.env.pop(name, None)  # the caller's (a Claude session's, the uv venv's, the terminal's)
         self.env.update(SHELL='/usr/bin/fish', XDG_CONFIG_HOME=os.path.join(tmp, 'xdg'),
                         OMC_HOME=os.path.join(tmp, 'omc'))
@@ -215,6 +217,9 @@ class DesignTest(unittest.TestCase):
             self.assertTrue(chunk, f'stderr closed before {text!r}: {seen!r}')
             seen += chunk
         return seen
+
+
+class DesignTest(DesignCase):
 
     # ------------------------------------------------------------------------------------------------------- the slug
     def test_a_brief_gives_its_name(self):
@@ -302,9 +307,11 @@ class DesignTest(unittest.TestCase):
         r = self.design('tasks/location-tracker-device-tests.md')
         self.assertStarted(r, 'feature/location-tracker-device-tests', 'the brief\n')
         lines = self.steps(r)
-        starts = ['→ primary:', '→ slug:', '→ lock:', '→ primary: pulling origin/main', '→ GitNexus: checking the build',
-                  '→ GitNexus: refreshing the index', '→ worktree:', '→ lock: released',
+        starts = ['→ primary:', '→ slug:', '→ lock:', '→ primary: pulling origin/main', '→ worktree:', '→ lock: released',
+                  '→ GitNexus: checking the build', '→ GitNexus: refreshing the index',  # outside the start's lock
                   '→ notifications: .claude/settings.local.json', f'→ session: starting fish on claude "{SESSION}"']
+        if sys.platform == 'darwin':  # the fish title hook is reconciled on macOS only, after the slug
+            starts.insert(2, '→ fish title hook: reconciling')
         self.assertEqual(len(lines), len(starts), r.stderr)
         for line, start in zip(lines, starts):
             self.assertTrue(line.startswith(start), (start, r.stderr))
@@ -322,6 +329,19 @@ class DesignTest(unittest.TestCase):
         self.assertRegex(lines[at], r' \[failed\] \S', r.stderr)
         self.assertEqual(lines[at + 1], 'GitNexus is stale: /explain answers from no index', r.stderr)
         self.assertFalse(any(line.startswith('→ GitNexus: refreshing') for line in lines), r.stderr)
+
+    def test_a_refresh_under_way_in_another_start_is_left_to_it(self):
+        gitnexus_lock = os.path.join(self.repo.work, '.cache', 'omc', 'gitnexus.lock')
+        os.makedirs(os.path.dirname(gitnexus_lock), exist_ok=True)
+        with open(gitnexus_lock, 'a') as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            r = self.design('add a weekly payout report', slugs='add-weekly-payout-report')
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        lines = self.steps(r)
+        self.assertIn('→ GitNexus: another start is refreshing the index [ok]', lines, r.stderr)
+        self.assertFalse(any(line.startswith(('→ GitNexus: checking', '→ GitNexus: refreshing')) for line in lines),
+                         r.stderr)
+        self.assertNotIn('GitNexus is stale', r.stderr)
 
     def test_a_keyword_only_refresh_warns(self):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', flags='embed-fails')
@@ -439,6 +459,22 @@ class DesignTest(unittest.TestCase):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', env={'SHELL': '/bin/sh'})
         sh = self.assertStarted(r, branch, 'add a weekly payout report\n', shell='sh')['argv'][1]
         self.assertTrue(sh.startswith(shlex.join([*design.terminal_title_argv(), branch]) + ' || :; '), sh)
+
+    def test_inside_herdr_the_tab_is_labelled_with_the_slug(self):
+        log = os.path.join(self.repo.root, 'herdr.log')
+        fake = os.path.join(self.bin_dir, 'fake-herdr')
+        write_exe(fake, f'#!/bin/sh\nprintf \'%s\\n\' "$*" >> {shlex.quote(log)}\n')
+        r = self.design('add a weekly payout report', slugs='add-weekly-payout-report',
+                        env={'TERM_PROGRAM': 'herdr', 'HERDR_TAB_ID': 'wW:t9', 'HERDR_BIN_PATH': fake})
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        self.assertEqual(self.read(log), 'tab rename wW:t9 add-weekly-payout-report\n')
+        self.assertIn('→ herdr tab: add-weekly-payout-report [ok]', self.steps(r))
+        self.again()
+        os.remove(log)
+        r = self.design('add a weekly payout report', slugs='add-weekly-payout-report')  # outside herdr
+        self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
+        self.assertIsNone(self.read(log))
+        self.assertNotIn('herdr tab', r.stderr)
 
     def test_the_origin_is_the_invocation_directory(self):
         origin = os.path.join(self.repo.root, 'where I typed it')
@@ -584,6 +620,13 @@ class DesignTest(unittest.TestCase):
         self.assertIn('design', names)
         self.assertNotIn('_design-start', names)  # private
 
+    def test_the_recipe_is_quiet(self):
+        self.recipe_setup()
+        r = self.run_just(self.repo.work, 'add a weekly payout report')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn('#!/usr/bin/env bash', r.stderr)  # the script's body is never echoed
+        self.assertNotIn('common=$(git', r.stderr + r.stdout)
+
     def test_the_recipe_from_a_worktree_pulls_and_runs_the_primary(self):
         self.recipe_setup()
         tree = self.side_tree()
@@ -621,6 +664,86 @@ class DesignTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.repo.git('rev-parse', 'HEAD').strip(), head)
         self.assertEqual(self.started(), [self.repo.work, f'--origin={self.repo.work}', 'add a weekly payout report'])
+
+
+
+DEFERRED_LOG = """# Design decision log
+
+*Scratch space. Next: 58*
+
+### 41 Incidents need a photo
+
+**Context.** Incidents are reported without proof.
+**Decision.** Every incident carries a photo.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13
+
+### 42 The header shows the call
+
+**Context.** The owner asked.
+**Decision.** The call sits under the picture.
+**Automated.** false
+**Status.** recorded 2026-11-12
+
+### 43 Reports list the totals
+
+**Context.** The totals are hidden.
+**Decision.** A report lists its totals.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13
+
+### 57 Applied after its deferral
+
+**Context.** Old.
+**Decision.** Done.
+**Automated.** false
+**Status.** recorded 2026-11-12 · deferred 2026-11-13 · applied 2026-11-14
+"""
+DEFERRED_BRIEF = """# Deferred rulings 41, 43
+
+## 41. Incidents need a photo
+
+**Context.** Incidents are reported without proof.
+**Decision.** Every incident carries a photo.
+
+## 43. Reports list the totals
+
+**Context.** The totals are hidden.
+**Decision.** A report lists its totals.
+"""
+
+
+class Deferred(DesignCase):
+    """`just design --deferred <ids>`: the deferred entries of origin/main's log as the brief."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo.commit('docs/decision-log.md', DEFERRED_LOG, 'the log')  # the fixture's paths.decision_log
+        self.repo.git('push', '-q', 'origin', 'main')
+
+    def test_writes_brief_and_launches(self):
+        r = self.design('--deferred', '41,43', slugs='incident-photos-and-report-totals')
+        self.assertStarted(r, 'feature/incident-photos-and-report-totals', DEFERRED_BRIEF)
+        prompts = [json.loads(line) for line in self.read(self.prompts).splitlines()]
+        self.assertEqual(len(prompts), 1)
+        self.assertTrue(prompts[0].endswith('The work: ' + DEFERRED_BRIEF.strip()), prompts[0])
+        self.again()
+        r = self.design(f'--origin={self.repo.work}', '--deferred=43', slugs='payout-lists-its-fees')
+        self.assertStarted(r, 'feature/payout-lists-its-fees', DEFERRED_BRIEF.split('## 41')[0].replace('41, 43', '43')
+                           + '## 43' + DEFERRED_BRIEF.split('## 43')[1])
+
+    def test_refuses_unknown_or_not_deferred(self):
+        for args, why in ((('--deferred', '99'), 'decision 99 is not in'),
+                          (('--deferred', '41,42'), 'decision 42 is not deferred'),
+                          (('--deferred', '57'), 'decision 57 is not deferred'),
+                          (('--deferred', 'x'), '--deferred takes'),
+                          (('--deferred',), '--deferred takes'),
+                          (('--deferred', '41', 'more'), '--deferred takes')):
+            r = self.design(*args, slugs='never-asked-for-this')
+            self.assertRefused(r, why)
+        self.assertIsNone(self.read(self.prompts))
+        self.assertIsNone(self.read(self.wt_log))
+        self.assertIsNone(self.read(self.shell_log))
 
 
 if __name__ == '__main__':

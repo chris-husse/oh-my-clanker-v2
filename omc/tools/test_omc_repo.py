@@ -164,6 +164,32 @@ class RepoTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout)['gate'], 'build')
 
+    def test_a_build_gate_holds_while_the_branch_changes_no_product_path(self):
+        """With `paths.product`, a plan's `Gate: build` holds while nothing changed since the merge-base (committed,
+        in the tree or untracked) matches one of its globs; a product path changed makes it `check`, the paths named
+        under `product`."""
+        self.repo.set_config('briefs: tasks/', 'briefs: tasks/\n  product: ["src/app/**"]')
+        gated = PLAN.replace('# The plan\n', '# The plan\n\nGate: build\n')
+        self.repo.commit(f'{PLANS}/2026-01-01-x-plan.md', gated, 'Plan: x')
+        self.repo.commit('tools/lint.py', 'x\n', 'a tool, not the product')
+        r = self.omc('plan', '--next')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['gate'], 'build')
+        self.assertNotIn('product', json.loads(r.stdout))
+        self.repo.write('src/app/main.dart', 'x\n')  # untracked
+        r = self.omc('plan', '--next')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), {'task': 2, 'title': 'Second', 'complexity': 'high', 'gate': 'check',
+                                                'product': ['src/app/main.dart']})
+
+    def test_without_paths_product_the_plans_gate_line_stands(self):
+        gated = PLAN.replace('# The plan\n', '# The plan\n\nGate: build\n')
+        self.repo.commit(f'{PLANS}/2026-01-01-x-plan.md', gated, 'Plan: x')
+        self.repo.commit('src/app/main.dart', 'x\n', 'code')
+        r = self.omc('plan', '--next')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)['gate'], 'build')
+
     def test_a_gate_line_inside_a_task_is_not_the_plans(self):
         inside = PLAN.replace('Complexity: simple\n', 'Complexity: simple\n\nGate: build\n')
         self.assertEqual(repo.next_task(inside)['gate'], 'check')

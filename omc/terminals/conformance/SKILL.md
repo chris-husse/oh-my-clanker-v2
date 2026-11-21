@@ -37,9 +37,11 @@ section of the record:
 
 - **Built as written**: what the section says is built (a file, a verb, a table, a step, a behaviour, an exit code, a
   message) is in the diff and does what the section says; its exact values (names, paths, words) are the record's.
-- **Nothing missing**: every row of "Files this work changes" is in `git diff --name-only`, and every path of the diff
-  is in a row or is explained by a section; a section's work the diff does not hold is a finding, unless the record
-  itself leaves it out ("Out of scope", "Left to the builder").
+- **Nothing missing**: every path of `git diff --name-only` is explained by a section (or, when the record has one,
+  by a row of its list of the files the work changes, and every such row is in the diff); a section's work the diff
+  does not hold is a finding, unless the record itself leaves it out ("Out of scope", "Left to the builder"). The
+  record's form is the brainstorm's and harden's: a section it does not have (a list of files, a table) is never a
+  finding.
 - **What the diff reaches**: `/explain` run for the symbols the diff changes (what calls them, what a change to them
   reaches), its citations checked in the tree as its step 3 says; a caller the diff reaches and did not follow is a
   finding when a section's rule says it should have.
@@ -55,8 +57,9 @@ applied entry, and `omc/tools/decisions/FORMAT.md` leaves the rest to a reader (
 matches the decision's words"). This part reads every decision of the branch against the record, the protected documents
 and the code.
 
-Run `just decisions list`: the log is trimmed of `<base>`'s entries at every rebase, so every line is an entry recorded
-or applied on the branch. None: say "no decision on this branch; nothing to review" in the report, and this part has
+Run `just decisions list --branch`: every line is an entry recorded or applied on the branch (the log also holds
+`<base>`'s deferred entries, left for a later branch, which `--branch` leaves out). None: say "no decision on this
+branch; nothing to review" in the report, and this part has
 no finding.
 
 Otherwise read the record's section "Decisions and the pages they change", and per entry (`just decisions show <n>`):

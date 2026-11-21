@@ -23,6 +23,12 @@ committed by the orchestrator. It runs no build, no test and no gate; its only `
 `just decisions list`, `just decisions show` and the read verbs of `just omc gitnexus` (`query`, `context`, `impact`,
 `cypher`, through `/explain`), never `install` or `refresh`.
 
+**The tree it starts on is the run's.** The record may be uncommitted (an earlier pass's edits), and so may the log
+(`paths.decision_log`): the orchestrator's step `fresh` trims it of `<base>`'s entries (`just decisions trim`) and
+commits that trim later, so a log that differs from `HEAD` by entries marked applied and removed is the run's own
+trim. Neither is someone else's change: the report never names them as such, and never as outside this terminal's
+remit.
+
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`; a value a
 command printed (`<start hash>`) is written out in the next one.
 `<base>` is `base` of `omc/config.yaml`, the base branch (`main` as shipped), read from the file and written out
@@ -52,17 +58,20 @@ exists) is checked the same way. Then one of three:
   otherwise): the record is fixed, in that section, to say what the page or the code says. The rules win over every
   page; a page that says otherwise lags them.
 - **It is a doubt**: the record disagrees with a rule or a protected document in force on purpose (it means to change
-  it) and no entry of the branch rules that change (`just decisions list`, `just decisions show <n>`); or the page and
-  the code disagree and the record would follow one of them; or the source does not settle it. Nothing is edited for it:
-  it is a question in the report (below). A disagreement an entry of the branch rules is no doubt: the record follows
-  the entry.
+  it) and no entry of the branch rules that change (`just decisions list --branch`, `just decisions show <n>`); or the
+  page and the code disagree and the record would follow one of them; or the source does not settle it. Nothing is
+  edited for it: it is a question in the report (below). A disagreement an entry of the branch rules is no doubt: the
+  record follows the entry.
 
 ## 3. The fold
 
 Which entries: those of the branch the record has no row for in its section "Decisions and the pages they change".
-`just decisions list` against the record's rows (a row is a table row of that section, outside code fences, whose
-first cell begins `decision <n>`, a backtick before it allowed; a later cell's `replaces decision <m>` never counts),
-and every `PROBLEM: record:` line of `problems`, which names such an entry. None: step 4. Otherwise each, in id order,
+`just decisions list --branch` against the record's rows (a row is a table row of that section, outside code fences,
+whose first cell begins `decision <n>`, a backtick before it allowed; a later cell's `replaces decision <m>` never
+counts), and every `PROBLEM: record:` line of `problems`, which names such an entry. `<base>`'s deferred entries, which
+the plain `list` shows too, are not the branch's and are never folded (the owner picks which ones a branch takes
+in). A row the seed put for a deferred entry the owner took into the branch (the brainstorm's seed) stays: it is kept,
+never dropped as not the branch's. None: step 4. Otherwise each, in id order,
 read with `just decisions show <n>`:
 
 1. its row in the record's table of decisions taken (the brainstorm's table; the next id in the record's own

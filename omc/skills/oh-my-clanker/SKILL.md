@@ -164,6 +164,11 @@ Only these keys change; every other key and comment stays as shipped:
 - `paths.screenshots` and `paths.baselines`: the globs of the committed screenshots and golden files `read` found;
   empty when there are none.
 - `paths.themes`: empty, unless the owner uses theme files with rule ids (ask only when `read` found such files).
+- `paths.product`: the globs of what the project ships (its app, its packages, its server), as `read` found them;
+  a plan whose branch changes none of them is gated by the build gate and the omc tool tests after each task
+  (`Gate: build`), its check gate run once at the end. Put to the owner with the files each glob matches now; the
+  options: those globs, or empty (the default where the check gate tests only the product: the plan writer then gives
+  `Gate: build` only to a branch that changes nothing the check gate tests).
 - `paths.briefs`, `paths.specs`, `paths.plans`, `paths.decision_log`, `paths.questions`: as shipped, unless the
   repository already keeps briefs, specs, plans or decision records in another folder; then ask, the shipped path and
   theirs as the options.
@@ -276,12 +281,15 @@ Then on to `gates`.
 ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc lint; just decisions check; just design-integrity-check; just links-check)
 ```
 
-then the fast gate, in the background (Bash's `run_in_background`) and polled
-(`(cd "$ROOT" && sleep 5 && tail -n 40 .cache/omc/gates/check.log)`) until it ends:
+then the fast gate, started detached from the worktree (a foreground `just omc gate run`, which writes its exit code
+into `.cache/omc/gates/check.exit` when it ends):
 
 ```bash
-ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && just omc gate run check)
+ROOT=$(git rev-parse --show-toplevel); (cd "$ROOT" && rm -f .cache/omc/gates/check.exit && nohup just omc gate run check >/dev/null 2>&1 & echo $!)
 ```
+
+and polled (`(cd "$ROOT" && sleep 5 && tail -n 40 .cache/omc/gates/check.log; cat .cache/omc/gates/check.exit)`)
+until the exit file holds the code; never a file outside the worktree.
 
 A red of this skill's own doing is fixed here and its check run again: a skill name, step or recipe `just omc lint`
 reports in a file this skill wrote or merged, a marker left, a malformed `omc/config.yaml`, a gate script that does

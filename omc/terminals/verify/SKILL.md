@@ -1,6 +1,6 @@
 ---
 name: verify
-description: "Run the milestone gate, the project's `omc/bin/verify` through `just omc gate run verify`, in the background and polled, then the design integrity check; fix while it runs, rerun the fixes, pass on a fresh full run of a clean tree. Commits the baselines it advanced, regenerates the screenshots, never judges them. Ends with a report and its OUTCOME line."
+description: "Run the milestone gate, the project's `omc/bin/verify` through `just omc gate run verify`, started detached and polled, then the design integrity check; fix while it runs, rerun the fixes, pass on a fresh full run of a clean tree. Commits the baselines it advanced, regenerates the screenshots, never judges them. Ends with a report and its OUTCOME line."
 ---
 
 # verify
@@ -10,8 +10,9 @@ inline in whoever ran `/verify` (the owner, or an agent at any depth); either wa
 the project's milestone gate, fixes what is red while it runs, reruns what it fixed, gives its verdict from a fresh
 full run on a clean tree, and ends with its report and one `OUTCOME` line, its last line. The pipeline reads the line,
 a caller by hand the report above it; `needs_user` is an outcome its caller reads and acts on, never a question this
-skill puts. The gate may outlast a command timeout, so it runs in the background and is polled, never in the
-foreground.
+skill puts. `just omc gate run verify` is a foreground process, which runs the project's command and ends with its
+exit code; it may outlast a tool call (ten minutes at most), and this terminal's Bash has no background option, so the
+terminal starts it detached, from the worktree, and polls its log and its exit file (step 2).
 
 **Inputs** (in the prompt, one per line; each has a default, for a `/verify` typed without them). `Root:` the
 worktree; without it, `git rev-parse --show-toplevel` of the current directory. `commits: new` or `commits: amend`:
@@ -38,7 +39,8 @@ yet squashed: each fix its own commit, the baselines' advances one commit of the
   screenshots and the baselines aside, below) is neither committed nor discarded by it: `needs_user`, with the paths.
 - **One build, test or render at a time in this worktree**: nothing else of its own runs beside `verify`; one run per
   worktree, so a rerun waits until the run before it has ended; runs in other checkouts take the gate's machine-wide
-  slots (`concurrency` of `omc/config.yaml`; absent: one), and a run waits for one.
+  slots (`concurrency` of `omc/config.yaml`; absent: one), and a run waits for one; beyond that slot, never wait for
+  another worktree's or session's run (their load is reported, not waited out).
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`.
 
@@ -49,8 +51,9 @@ then the slow ones), and this skill does not list it. `just omc gate run verify`
 streamed and teed to `.cache/omc/gates/verify.log` (truncated at each run), and exits with its exit code. A run with
 arguments (`just omc gate run verify <ARGS…>`, when the project's command takes some to run a part of it) is a partial
 run: it never records a pass and never gives the verdict. After each full run this terminal runs
-`just design-integrity-check` itself, in the foreground (no build, no test); in a project without protected documents
-or a decision log it finds nothing and passes.
+`just design-integrity-check --defer-questions` itself, in the foreground (no build, no test): the open questions and
+the `disagreed` entries wait for the audit's push, since the owner rules them after their screenshot review, which
+follows `verify`; in a project without protected documents or a decision log it finds nothing and passes.
 
 The gate may write files: the screenshots it regenerates (`paths.screenshots` of `omc/config.yaml`) and the baselines
 it advances (`paths.baselines`), each a list of globs. They are left as uncommitted changes by the run and handled
@@ -68,32 +71,44 @@ after the passing run (below). When both lists are empty, every step about them 
    ```
 
    The last command prints nothing, or the rule above applies.
-2. **Start.** `(cd <root> && just omc gate run verify)` with the Bash tool's `run_in_background`; its background task
-   ends with the command's exit code. An exit 2 with `error: no gate command omc/bin/verify` (or `is not
+2. **Start.** The run, detached:
+
+   ```bash
+   (cd <root> && rm -f .cache/omc/gates/verify.exit && nohup just omc gate run verify >/dev/null 2>&1 & echo $!)
+   ```
+
+   The line it prints is the run's pid. The run writes its exit code into `.cache/omc/gates/verify.exit` when it
+   ends, beside its log `.cache/omc/gates/verify.log`; those two files are the whole of its state. Never a file
+   outside the worktree (a `/tmp/…` path is shared with the runs of every other worktree), never a wrapper of this
+   terminal's own around the command; a stop of a run of this terminal's is `kill <pid>` (the run ends its command's
+   group and writes 143). An exit 2 with `error: no gate command omc/bin/verify` (or `is not
    executable`) is the project's setup, not a red: `needs_user`, naming it. Never start a run while one of this
    terminal's is still going; a run this terminal did not start that holds what the project's command needs (its
    error names a lock, a port or a process held) is never stopped (the owner may have started it): `needs_user`,
    naming what holds it, with the options to wait for it or to stop it.
-3. **Poll.** `(cd <root> && sleep 30 && tail -n 40 .cache/omc/gates/verify.log)` until the background task has ended;
-   each call takes about half a minute, far below the command timeout. A log whose last line is
-   `max concurrency of verify reached (…); waiting` is a run waiting for a slot (`concurrency` of `omc/config.yaml`:
-   other runs of the gate on this machine), not stuck; the line comes again each minute. With a `silence` limit for
+3. **Poll.** `(cd <root> && sleep 30 && tail -n 40 .cache/omc/gates/verify.log; cat .cache/omc/gates/verify.exit)`
+   until the exit file holds the code (`cat` fails while the run goes on); each call takes about half a minute, far
+   below the tool call's limit. A log whose last line is `max concurrency of verify reached (…); waiting` is a run
+   waiting for a slot (`concurrency` of `omc/config.yaml`: other runs of the gate on this machine), not stuck; the
+   line comes again each minute. With a `silence` limit for
    `verify` in `omc/config.yaml`, the gate ends a run that writes nothing that long itself: the log's last line
    `no output for <s> s: killed` and exit 124 are the red of the step it was in: name the step in the report, fix it,
    commit the fix, and start again from step 1. Without one, the gate never stops a run for its time or its silence,
-   and the check is this terminal's: the log has not grown for a minute while the task still runs (and is not waiting
-   for a slot): it is likely stuck. Read the end of the log; when it is stuck, stop the background task, name the
+   and the check is this terminal's: the log has not grown for a minute while the run still goes (and is not waiting
+   for a slot): it is likely stuck. Read the end of the log; when it is stuck, stop the run (`kill <pid>`), name the
    step in the report, fix it, commit the fix, and start again from step 1.
 4. **Fix while it runs.** Analyze each failure as it appears in the log and fix it while the run goes on; do not wait
    for the end. Run nothing else meanwhile.
-5. **Done.** When the task has ended, read its exit code and the log, then run `just design-integrity-check`. Exit 0
+5. **Done.** When the exit file holds the code, read it and the log, then run
+   `just design-integrity-check --defer-questions`. Exit 0
    of a full run started on a clean tree, no `PROBLEM` line, and then `just omc gate passed verify` exits 0: on to
    "After the passing run". Otherwise rerun what each fixed failure fixed (a single test in the foreground, or a
-   partial run, `just omc gate run verify <ARGS…>`, in the background and polled the same way), one after another,
+   partial run, `just omc gate run verify <ARGS…>`, started detached and polled the same way), one after another,
    fixing again what is still red without another rerun; a partial run truncates the log, so read the full run's log
    before it. Then commit the fixes, green or not, and a fresh full run from step 1 is the next attempt, where a
    failure still red counts; a partial run never gives the verdict.
-6. **Died.** The task ended without an exit code (killed from outside, or crashed): read the end of the log, then
+6. **Died.** The run's pid is gone (`kill -0 <pid>` fails) and no exit file was written (killed from outside, or
+   crashed): read the end of the log, then
    start again from step 1; the dead run counts as an attempt.
 
 ## What is red, and how it is fixed
@@ -105,11 +120,12 @@ after the passing run (below). When both lists are empty, every step about them 
   or in the code under it, whatever made it pass one time and fail another.
 - **`design-integrity-check`** is read line by line, by the check each `PROBLEM: <check>:` line names. Its
   `links-check` lines are fixed like any red step (`/reconcile-links`; where that skill would leave a question, or a
-  link waits for a decision, `needs_user`). Every other check (`pending`, `questions`, `record`, `guard`,
-  `decisions check`) is never fixed here: this terminal never edits the decision log, never records a decision, never
-  writes a row into the record, never writes a question file and never undoes an edit of a protected document. The
-  run's other failures are still fixed; once the run has ended, each fixed failure's rerun runs as in step 5, the
-  fixes are committed, and the outcome is `integrity` with those `PROBLEM` lines, without a fresh run.
+  link waits for a decision, `needs_user`). Every other check (`pending`, `record`, `guard`, `decisions check`; the
+  open questions and the `disagreed` entries never reach it, as this terminal runs it with `--defer-questions`) is
+  never fixed here: this terminal never edits the decision log, never records a decision, never writes a row into the
+  record, never writes a question file and never undoes an edit of a protected document. The run's other failures are
+  still fixed; once the run has ended, each fixed failure's rerun runs as in step 5, the fixes are committed, and the
+  outcome is `integrity` with those `PROBLEM` lines, without a fresh run.
 
 ## After the passing run
 
@@ -130,9 +146,10 @@ after the passing run (below). When both lists are empty, every step about them 
 
    A commit only under `paths.baselines` keeps the pass: `just omc gate passed verify` still holds.
 2. **The screenshots.** The regenerated screenshots stay in the tree, uncommitted: this terminal never looks at them,
-   judges them, adds, restores or deletes one after the passing run; judging them is `screens-judge`'s.
-   `shots_changed` is `true` when `git status --porcelain -- <specs>`, `<specs>` one pathspec per glob of
-   `paths.screenshots`, lists any line, else `false` (and `false` when the list is empty).
+   judges them, adds, restores or deletes one after the passing run; judging them is ▣ screens-assess's, in the audit's
+   `screens` step, and the owner's review after it. `shots_changed` is `true` when `git status --porcelain -- <specs>`,
+   `<specs>` one pathspec per glob of `paths.screenshots`, lists any line, else `false` (and `false` when the list is
+   empty).
 
 ## The outcome
 
@@ -159,6 +176,7 @@ the failing tests of the last attempt; `problems` holds the `PROBLEM` lines of e
   `integrity`.
 - Never start an agent or a skill that starts one or that talks to the owner: the report and its `OUTCOME` line are
   the whole answer.
-- Never run the gate in the foreground, never a run beside another, never stop a run this terminal did not start.
+- Never run the gate inside a tool call (it starts detached), never a run of this run's beside another, never stop a
+  run this terminal did not start.
 - Never take a partial run or a run started on a dirty tree for the verdict.
 - Never `git add -A`, `git add .` or `git add -f`.
