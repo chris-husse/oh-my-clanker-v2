@@ -137,13 +137,29 @@ class ConfigTest(unittest.TestCase):
     def test_paths_default_empty(self):
         defaults = config.Paths(protected=(), screenshots=(), baselines=(), briefs='tasks/',
                                 specs='docs/superpowers/specs/', plans='docs/superpowers/plans/',
-                                decision_log='docs/decision-log.md', questions='docs/reviews/', themes=())
+                                decision_log=None, questions='docs/reviews/', themes=())
         self.assertEqual(self.load_text(GOOD).paths, defaults)
         if not os.path.exists(os.path.join(REPO, 'omc', 'VERSION')):  # the generic file v2 ships; an installed copy's
             self.assertEqual(config.load(REPO).paths, defaults)       # config holds the project's own paths
         cfg = self.load_text(GOOD + 'paths:\n  protected: ["docs/design/**/*.md"]\n  specs: design/\n')
         self.assertEqual((cfg.paths.protected, cfg.paths.specs, cfg.paths.plans),
                          (('docs/design/**/*.md',), 'design/', 'docs/superpowers/plans/'))
+
+    def test_decision_log_is_opt_in(self):
+        """Absent means off: no default log; only a config that names one has it, and v2's own names none."""
+        self.assertIsNone(config.Paths().decision_log)
+        self.assertIsNone(self.load_text(GOOD).paths.decision_log)
+        self.assertIsNone(self.load_text(GOOD + 'paths:\n  specs: design/\n').paths.decision_log)
+        self.assertEqual(self.load_text(GOOD + 'paths:\n  decision_log: notes/log.md\n').paths.decision_log,
+                         'notes/log.md')
+        self.assertRefused(GOOD + 'paths:\n  decision_log: ""\n', 'paths.decision_log is not a non-empty string')
+        self.assertRefused(GOOD + 'paths:\n  decision_log: [a.md]\n', 'paths.decision_log is not a non-empty string')
+        if os.path.exists(os.path.join(REPO, 'omc', 'VERSION')):  # an installed copy's config is the project's own
+            return
+        with open(os.path.join(REPO, 'omc', 'config.yaml'), encoding='utf-8') as f:
+            shipped = f.read()
+        self.assertNotRegex(shipped, r'(?m)^\s*decision_log:')  # v2 and install configure no log
+        self.assertRegex(shipped, r'(?m)^\s*#\s*decision_log: ')  # a commented line says how to enable one
 
     def test_paths_product(self):
         self.assertEqual(config.Paths().product, ())  # absent: the plan's own reading of `Gate: build`

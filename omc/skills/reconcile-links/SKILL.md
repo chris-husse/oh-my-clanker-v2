@@ -5,7 +5,8 @@ description: Make the docs vault's links whole again - run `just links-check`, f
 
 # Reconcile the vault's links
 
-The vault is the top folder of `paths.decision_log` of `omc/config.yaml` (`docs/` by default); `just links-check` reads
+The vault is the top folder of `paths.decision_log` of `omc/config.yaml` (the repository itself when no log is
+configured, as shipped); `just links-check` reads
 the protected documents (`paths.protected`), the theme files (`paths.themes`), the question files (`paths.questions`)
 and the log. The rule is the vault's `LINKS.md`, where the project keeps one; read it whole first. `just links-check` is
 the judge: it prints one `PROBLEM: <file>:<line>: <kind>: <detail>` per break, then `OK` or `<n> problems`.

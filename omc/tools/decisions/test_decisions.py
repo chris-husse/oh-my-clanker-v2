@@ -1203,8 +1203,44 @@ class ConfigTest(unittest.TestCase):
                               env=self.repo.env, capture_output=True, text=True)
 
     def configure(self, **paths):
+        paths.setdefault('decision_log', 'docs/decision-log.md')  # a fixture that needs a log sets the key
+        self.configure_off(**paths)
+
+    def configure_off(self, **paths):
+        """omc/config.yaml with [paths] as given: no `decision_log` unless named, so no log configured."""
         self.repo.commit('omc/config.yaml', config_text(config.Paths(**paths)), 'config')
         self.repo.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def test_no_log_configured_read_verbs_are_silent(self):
+        """Absent means off: every verb that only reads or maintains the log prints nothing and exits 0, a file at
+        the old default path and paths.protected notwithstanding (no vault is required)."""
+        self.repo.commit('docs/decision-log.md', LOG_HEAD, 'a file the config does not name')
+        for paths in ({}, {'protected': ('spec/**/*.md',)}):
+            self.configure_off(**paths)
+            for verb in (['renumber'], ['trim'], ['check'], ['resolve'], ['guard'], ['list'], ['list', '--branch'],
+                         ['show', '1'], ['pending'], ['pending', '--questions']):
+                r = self.run_tool(*verb)
+                self.assertEqual((r.returncode, r.stdout, r.stderr), (0, '', ''), (verb, paths))
+
+    def test_no_log_configured_write_verbs_refuse(self):
+        self.configure_off()
+        for verb in (['add-decision', '--title', 'T', '--context', 'C.', '--decision', 'D.'],
+                     ['apply-decision', '--id', '1', '--affected', ''], ['defer', '--id', '1'],
+                     ['undefer', '--id', '1'], ['confirm', '1'], ['overrule', '1', '--by', '2'],
+                     ['update', '1', '--title', 'U'], ['remove', '1']):
+            r = self.run_tool(*verb)
+            self.assertEqual((r.returncode, r.stdout, r.stderr),
+                             (2, '', 'error: no decision log configured: set paths.decision_log in omc/config.yaml to '
+                                     'enable one\n'), verb)
+        self.assertFalse(os.path.exists(os.path.join(self.repo.work, 'docs', 'decision-log.md')))
+
+    def test_configure_without_a_log(self):
+        decisions.configure(config.Paths(protected=('spec/**/*.md',), questions='notes/'))
+        try:
+            self.assertIsNone(decisions.LOG)
+            self.assertTrue(decisions.guarded('spec/a.md'))
+        finally:
+            decisions.configure(PATHS)
 
     def test_no_log_no_protected_check_passes(self):
         for gone in (False, True):  # with origin/main, then without: an idle tool reads no git

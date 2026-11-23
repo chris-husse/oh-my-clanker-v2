@@ -25,7 +25,7 @@ paths:
   briefs: tasks/
   specs: docs/superpowers/specs/
   plans: docs/superpowers/plans/
-  decision_log: docs/decision-log.md
+  # decision_log: docs/decision-log.md  # opt-in: uncomment to keep a decision log (absent: none, `just decisions` silent)
   questions: docs/reviews/
   themes: []                    # globs of the theme files (rule ids)
   product: []                   # globs of what the project ships (a branch changing none of it: `Gate: build`)

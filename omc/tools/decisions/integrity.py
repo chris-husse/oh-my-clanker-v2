@@ -11,8 +11,9 @@ record, git and the vault's links; no build, no test, no gate stage. Whether an 
 is the "decisions carried" review's reading, not checked here. Every check but the record's is decisions.py's own
 function, called in-process; git is read only in `branch_records` and through decisions.py (`repo_of`, `git_inputs`,
 `tree_refs`); every other function takes texts. omc/config.yaml's paths place the log, the guarded pages, the question
-files and the records (decisions.configured; pyyaml reads it, so it runs through uv); with no log and no protected page
-there is nothing to check: it prints nothing and exits 0. Run from the repository root: `just design-integrity-check
+files and the records (decisions.configured; pyyaml reads it, so it runs through uv); with no log configured, or no log
+file and no protected page, there is nothing to check: it prints nothing and exits 0 (no log configured and
+`paths.protected` set is refused: the guarded pages need a log). Run from the repository root: `just design-integrity-check
 [--phase design|implementation] [--defer-questions]` (`--help`)."""
 import argparse
 import os
@@ -28,6 +29,7 @@ PHASES = ('design', 'implementation')
 SECTION = 'Decisions and the pages they change'
 LINKS_TOOL = 'omc/skills/reconcile-links/tool'   # repo-relative
 LINKS_HOOK = 'omc/bin/links-check'   # the project's own link checks, run after the tool's when it exists
+NO_LOG_PROTECTED = 'paths.protected is set but no decision log is configured (paths.decision_log)'
 ROW_RE = re.compile(r'^\s*\|\s*`?decision (\d+)')  # a row whose first cell begins `decision <n>`
 
 
@@ -156,7 +158,12 @@ def main(argv=None):
                              'decisions step, verify\'s step); /audit\'s push and the pre-push hook never pass it')
     args = parser.parse_args(argv)
     try:
-        vault = decisions.Vault(decisions.configured(args.docs))
+        root = decisions.configured(args.docs)
+        if decisions.LOG is None:
+            if decisions.PROTECTED:
+                raise decisions.RefError(NO_LOG_PROTECTED)
+            return 0  # idle: no log configured
+        vault = decisions.Vault(root)
         if not vault.is_file(decisions.LOG):
             if not decisions.PROTECTED:
                 return 0  # idle: no log, no protected page

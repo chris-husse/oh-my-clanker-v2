@@ -169,9 +169,10 @@ Only these keys change; every other key and comment stays as shipped:
   (`Gate: build`), its check gate run once at the end. Put to the owner with the files each glob matches now; the
   options: those globs, or empty (the default where the check gate tests only the product: the plan writer then gives
   `Gate: build` only to a branch that changes nothing the check gate tests).
-- `paths.briefs`, `paths.specs`, `paths.plans`, `paths.decision_log`, `paths.questions`: as shipped, unless the
-  repository already keeps briefs, specs, plans or decision records in another folder; then ask, the shipped path and
-  theirs as the options.
+- `paths.briefs`, `paths.specs`, `paths.plans`, `paths.questions`: as shipped, unless the repository already keeps
+  briefs, specs, plans or question files in another folder; then ask, the shipped path and theirs as the options.
+- `paths.decision_log`: absent as shipped (no decision log: `just decisions` is silent and a ruling is not recorded);
+  written only when the owner explicitly enables a log for this project, at the path they give.
 - `concurrency` and `silence` (both commented out as shipped; absent, every gate runs one at a time on the machine
   and is never killed for its silence): ask whether a gate (`check`, `build`, `verify`) may run more than once at a
   time on this machine, over its checkouts and worktrees (the options: one, the default, or the number the machine
@@ -180,8 +181,8 @@ Only these keys change; every other key and comment stays as shipped:
   seconds, longer than the gate's slowest silent step). Each answer other than the default goes in as the key's
   mapping, `<gate>: <n>`.
 
-**The vault rule.** The vault is the top folder of `paths.decision_log` (`docs/` as shipped; the repository itself
-for a log at its root). Every glob of `paths.protected` and `paths.themes` (its literal part, up to its first
+**The vault rule.** With a log enabled, the vault is the top folder of `paths.decision_log` (the repository itself
+for a log at its root); with none, no vault is required and the rule below does not apply. Every glob of `paths.protected` and `paths.themes` (its literal part, up to its first
 wildcard) and `paths.questions` must lie inside it, or every `just decisions` command and `just links-check` exits 2
 (`lies outside the vault`). Not any glob will do, so say so when asking: a document the owner names outside the vault
 is put to them with the options of moving `paths.decision_log` (and `paths.questions`) to a top folder that holds it

@@ -342,6 +342,24 @@ class DormantTest(unittest.TestCase):
         finally:
             repo.cleanup()
 
+    def test_integrity_idle_with_no_log_configured(self):
+        """No paths.decision_log: idle, unless paths.protected names pages, which need a log: then refused."""
+        import omc_fixtures
+        import config
+        from decision_log_fixtures import config_text
+        repo = omc_fixtures.Repo.make_repo()
+        try:
+            for paths, want in (({}, (0, '', '')),
+                                ({'protected': ('docs/design/**/*.md',)},
+                                 (2, '', 'error: paths.protected is set but no decision log is configured '
+                                         '(paths.decision_log)\n'))):
+                repo.commit('omc/config.yaml', config_text(config.Paths(**paths)), 'config')
+                r = subprocess.run([sys.executable, '-I', os.path.join(HERE, 'integrity.py')], cwd=repo.work,
+                                   env=repo.env, capture_output=True, text=True)
+                self.assertEqual((r.returncode, r.stdout, r.stderr), want, paths)
+        finally:
+            repo.cleanup()
+
 
 if __name__ == '__main__':
     unittest.main()

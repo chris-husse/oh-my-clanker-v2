@@ -68,7 +68,8 @@ question file", "the record", "the plan", "in implementation"; no coined compres
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; a value a command printed (`<record>`, `<plan>`, `<merge-base>`, a path)
 is written out in the next one; so are the configured paths, read from `omc/config.yaml`: `<log>` is
-`paths.decision_log`, `<questions>` is `paths.questions` (a folder, ending with `/`), `<shots>…` are the globs of
+`paths.decision_log` (no log configured: `<log>` is dropped from the command, and a step about the log is skipped),
+`<questions>` is `paths.questions` (a folder, ending with `/`), `<shots>…` are the globs of
 `paths.screenshots` and `<baselines>…` those of `paths.baselines`, each glob written as a `':(glob)<glob>'` pathspec;
 `<verdicts>` is `<questions>shots/` (the shots' verdicts, `<verdicts><slug>.yaml`, `<slug>` the branch without
 `branch_prefix`) and `<screen-reviews>` is `<questions>screens/` (the owner's review rounds).

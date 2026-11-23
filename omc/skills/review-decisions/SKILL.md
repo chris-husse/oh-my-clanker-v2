@@ -40,7 +40,8 @@ otherwise the harness default; this skill names no model.
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; the configured paths of `omc/config.yaml` are written out in each
-command: `<log>` is `paths.decision_log`, `<questions>` and `<specs>` the folders `paths.questions` and `paths.specs`
+command: `<log>` is `paths.decision_log` (no log configured: `<log>` is dropped from the command, and a step about the
+log is skipped), `<questions>` and `<specs>` the folders `paths.questions` and `paths.specs`
 (ending with `/`), `<baselines>…` the globs of `paths.baselines`, each as a `':(glob)<glob>'` pathspec. The log is
 written only through `just decisions`; its subcommands are `add-decision`, `apply-decision`, `defer`, `undefer`,
 `update`, `remove`, `confirm`, `overrule`, `show`, `list`, `pending`, `guard`, `trim`, `resolve`, `renumber` and

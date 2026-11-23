@@ -25,11 +25,22 @@ void main() {
   tearDown(() => tmp.deleteSync(recursive: true));
 
   group('layoutOf', () {
-    test('without omc/config.yaml: the vault docs/, the log decision-log.md in it', () {
+    test('without omc/config.yaml: no log, the vault is the repository', () {
       final l = layoutOf(repo());
-      expect(l.vault, p.join(repo(), 'docs'));
-      expect(l.label, 'docs');
-      expect(l.log, 'decision-log.md');
+      expect(l.vault, p.normalize(repo()));
+      expect(l.label, '.');
+      expect(l.log, isNull);
+    });
+
+    test('no paths.decision_log: no log, no vault required, every glob and the questions folder anywhere', () {
+      put('omc/config.yaml',
+          'paths:\n  protected: [docs/design/**, spec/**]\n  questions: notes/q/\n  themes: [rules/*.md]\n');
+      final l = layoutOf(repo());
+      expect(l.vault, p.normalize(repo()));
+      expect(l.log, isNull);
+      expect(l.scope.isProtected('spec/a.md'), isTrue);
+      expect(l.scope.isChecked('notes/q/x.md'), isTrue);
+      expect(l.scope.isChecked('docs/decision-log.md'), isFalse); // a file at the old default path is no log
     });
 
     test('paths.decision_log of omc/config.yaml: the vault its top folder, the log relative to it', () {
@@ -59,7 +70,7 @@ void main() {
       expect(s.isChecked('design/T01.md'), isTrue);
       expect(s.isChecked('reviews/log.md'), isTrue);
       expect(s.isProtected('architecture/a.md'), isTrue); // the guarded set is unchanged
-      put('omc/config.yaml', 'paths:\n  links: [elsewhere/**]\n');
+      put('omc/config.yaml', 'paths:\n  decision_log: docs/log.md\n  links: [elsewhere/**]\n');
       expect(() => layoutOf(repo()), throwsStateError);
     });
 
@@ -75,11 +86,11 @@ void main() {
       expect(s.isChecked('stories/s.md'), isFalse);
     });
 
-    test('a config without paths, or without decision_log: the default', () {
+    test('a config without paths, or without decision_log: no log (absent means off)', () {
       put('omc/config.yaml', 'base: main\n');
-      expect(layoutOf(repo()).log, 'decision-log.md');
+      expect(layoutOf(repo()).log, isNull);
       put('omc/config.yaml', 'paths:\n  briefs: tasks/\n');
-      expect(layoutOf(repo()).vault, p.join(repo(), 'docs'));
+      expect(layoutOf(repo()).vault, p.normalize(repo()));
     });
   });
 
@@ -163,16 +174,19 @@ void main() {
       ];
     }
 
-    test('with the defaults only the log is checked: docs/design/ is no folder of its own', () {
+    test('with only the log configured only the log is checked: docs/design/ is no folder of its own', () {
       put('docs/decision-log.md', '# Log\n\n[gone](nothere.md)\n');
       put('docs/design/x.md', '# X\n\n[gone](nothere.md)\n');
       put('docs/stories/y.md', '# Y\n\n[gone](nothere.md)\n');
+      commit();
+      expect(problems(), isEmpty); // the defaults: no log, nothing protected, so nothing checked
+      put('omc/config.yaml', 'paths:\n  decision_log: docs/decision-log.md\n');
       commit();
       expect(problems(), ['docs/decision-log.md:3 unpinned']); // the log is history
     });
 
     test('the question files: every *.md directly under paths.questions, checked and pinned', () {
-      put('omc/config.yaml', 'paths:\n  questions: docs/questions/\n');
+      put('omc/config.yaml', 'paths:\n  decision_log: docs/decision-log.md\n  questions: docs/questions/\n');
       put('docs/x.md', '# X\n\n## Gone soon\n\nText.\n');
       put('docs/questions/q1.md', '# Q1\n\n[x](../x.md#Gone%20soon) and [dead](nothere.md)\n');
       put('docs/questions/deeper/q2.md', '# Q2\n\n[dead](nothere.md)\n');
@@ -189,7 +203,7 @@ void main() {
     });
 
     test('a protected glob: a broken link there is reported, one in an unprotected page is not', () {
-      put('omc/config.yaml', 'paths:\n  protected: [docs/spec/**/*.md]\n');
+      put('omc/config.yaml', 'paths:\n  decision_log: docs/decision-log.md\n  protected: [docs/spec/**/*.md]\n');
       put('docs/spec/a.md', '# A\n\n[gone](nothere.md)\n');
       put('docs/spec/deep/b.md', '# B\n\n[gone](../nothere.md)\n');
       put('docs/spec/c.txt', '[gone](nothere.md)\n');
@@ -199,7 +213,8 @@ void main() {
     });
 
     test('the theme files: paths.themes globs, checked, and the source of the stories\' rule references', () {
-      put('omc/config.yaml', 'paths:\n  protected: [docs/stories/*.md]\n  themes: [docs/themes/T*.md]\n');
+      put('omc/config.yaml',
+          'paths:\n  decision_log: docs/decision-log.md\n  protected: [docs/stories/*.md]\n  themes: [docs/themes/T*.md]\n');
       put('docs/themes/T01-tenant.md', '# T1\n\n### T1.1 Tenant scope\n\n[gone](nothere.md)\n');
       put('docs/themes/README.md', '# Themes\n\n[gone](nothere.md)\n');
       put('docs/design/T02-flags.md', '# T2\n\n### T2.1 Flags\n');
