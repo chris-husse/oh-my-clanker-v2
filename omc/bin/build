@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# v2's build (never shipped): nothing to compile or package; the uv environment is checked against its lock
+exec env UV_PROJECT_ENVIRONMENT="$PWD/.cache/venv" uv sync --project omc --frozen --quiet

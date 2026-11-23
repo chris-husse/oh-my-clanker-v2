@@ -409,6 +409,7 @@ class BashSessionTest(unittest.TestCase):
         home = tmp_path / "home"
         home.mkdir()
         (home / ".bashrc").write_text(bashrc)
+        (home / ".hushlogin").touch()  # quiets Ubuntu's /etc/bash.bashrc sudo hint on stdout
         rcdir = tmp_path / "rc"
         rcdir.mkdir()
         argv, files = detect_shell({"SHELL": "bash"}).build_invocation(

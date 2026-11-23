@@ -1,3 +1,5 @@
 .cache/
 __pycache__/
 *.pyc
+# v2 is the source of omc/, installed into itself: the VERSION that install writes would only go stale
+/omc/VERSION

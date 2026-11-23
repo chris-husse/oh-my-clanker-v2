@@ -1,4 +1,8 @@
 # oh-my-clanker v2's own recipes; omc/ is what projects receive.
+# v2 runs its own pipeline too (`just design`, `just omc`, …): installed into itself by `just install . --no-launch`,
+# its .claude/skills link the working tree's omc/ skills.
+import 'omc/omc.just'
+
 py := "UV_PROJECT_ENVIRONMENT=" + quote(justfile_directory() / ".cache/venv") + " uv run --project omc --frozen python -I -X pycache_prefix=.cache/pycache"
 
 # Every Python test script of omc/ and install/, one after the other; all run, and it fails when any is red.

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# v2's fast gate (never shipped: install leaves omc/bin/ alone): every test script of omc/ and install/
+exec just test "$@"

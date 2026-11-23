@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && just omc enter --resume"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"${TERM_PROGRAM-}\" = herdr ] && python3 -I -X pycache_prefix=\"$CLAUDE_PROJECT_DIR/.cache/pycache\" \"$CLAUDE_PROJECT_DIR/omc/tools/herdr.py\" >/dev/null 2>&1 || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

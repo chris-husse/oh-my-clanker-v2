@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# v2's milestone gate (never shipped): no E2E suite yet, so every test script of omc/ and install/
+exec just test "$@"

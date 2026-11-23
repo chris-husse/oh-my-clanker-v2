@@ -1351,7 +1351,8 @@ def tree_refs(repo):
 
 def _grep_refs(repo, args, rev):
     log_anchor = re.sub(r'([.^$*+?()\[\]{}|\\])', r'\\\1', posixpath.basename(LOG)) + '#[0-9]'  # a link to an entry, ERE
-    r = subprocess.run(['git', '-C', repo, '-c', 'core.quotePath=false', 'grep', '-n', '-I', *args, '-E', '-e',
+    # submodule.recurse off: a user's `submodule.recurse=true` makes `git grep --untracked` fail outright
+    r = subprocess.run(['git', '-C', repo, '-c', 'core.quotePath=false', '-c', 'submodule.recurse=false', 'grep', '-n', '-I', *args, '-E', '-e',
                         r'[Dd]ecisions?[[:space:]]+[0-9]', '-e', log_anchor, *([rev] if rev else []), '--'],
                        capture_output=True)
     if r.returncode not in (0, 1):
