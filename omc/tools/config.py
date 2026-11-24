@@ -3,7 +3,8 @@ orchestrator's model, the hand-off flag `ask_for_provider_handoff` (absent: fals
 `complexity` mapping of a plan task's `Complexity:` line to a tier or the orchestrator, Claude's models only,
 the `gitnexus` pin, the fork's origin and full commit sha, the gates' `concurrency` (runs of a gate at once on the
 machine, absent: 1) and `silence` (seconds without output before a gate run is killed, absent: none), and
-`paths`, every path of the project the tools read (`Paths`; absent: the defaults, every glob list empty; `links`,
+`paths`, every path of the project the tools read (`Paths`; absent: the defaults, every glob list empty, no decision
+log (`decision_log`: opt-in, absent means off); `links`,
 the files links-check reads, absent: the protected ones; `product`, what the project ships, absent: a plan's
 `Gate: build` is the plan writer's reading alone).
 Read with `yaml.safe_load`, so through the justfile's `uv run --frozen python -I` (pyyaml is pinned); the names every
@@ -51,7 +52,7 @@ class Paths:
     briefs: str = 'tasks/'
     specs: str = 'docs/superpowers/specs/'
     plans: str = 'docs/superpowers/plans/'
-    decision_log: str = 'docs/decision-log.md'
+    decision_log: str | None = None  # the decision log; absent: none (opt-in: only a project that names one has it)
     questions: str = 'docs/reviews/'
     themes: tuple[str, ...] = ()  # the theme files (rule ids)
     product: tuple[str, ...] = ()  # what the project ships: a branch changing none of it is gated by build (`Gate:`)
@@ -70,6 +71,7 @@ class Paths:
 
 
 FOLDERS = ('briefs', 'specs', 'plans', 'questions')  # the `Paths` strings that name a folder
+STRINGS = FOLDERS + ('decision_log',)  # the `Paths` that are one path, not a list of globs
 
 
 def matches(path, globs):
@@ -98,7 +100,7 @@ def _paths(path, data):
     for key, value in data.items():
         if key not in known:
             raise Refused(f'{path}: paths.{key} is no path omc reads ({", ".join(known)})')
-        if isinstance(known[key].default, str):
+        if key in STRINGS:
             if not isinstance(value, str) or not value:
                 raise Refused(f'{path}: paths.{key} is not a non-empty string')
             values[key] = value if key not in FOLDERS or value.endswith('/') else value + '/'

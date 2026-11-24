@@ -1,6 +1,6 @@
 # The log
 
-`paths.decision_log` of `omc/config.yaml` (`docs/decision-log.md` by default) is the one decision log: one file, one flat list of entries, no sections. It is
+`paths.decision_log` of `omc/config.yaml` (opt-in: absent, as shipped, there is no log; every `just decisions` verb that only reads or maintains it is then silent, exit 0, and every verb that writes an entry refuses, exit 2) is the one decision log: one file, one flat list of entries, no sections. It is
 scratch space: an entry is recorded when the owner rules, applied when the protected documents carry it (or deferred to
 a later branch, below), and trimmed once it is applied on `<base>`. It is written only through `just decisions` (the tool below).
 

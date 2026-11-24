@@ -22,7 +22,8 @@ a page found lagging a rule. It commits nothing itself but the review file, alon
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; a path or a number a command printed is written out in the next one, and
-so are `<questions>` and `<log>` (`paths.decision_log`). The only `just decisions` subcommands this skill runs are
+so are `<questions>` and `<log>` (`paths.decision_log`; no log configured: `<log>` is dropped from the command, and a
+step about the log is skipped). The only `just decisions` subcommands this skill runs are
 `list` and `show`; `/answer-doubt`, `/record-decision` and `/review-decisions` run their own.
 
 **Talking to the owner.** This skill asks them at most one question, at the start: which file, when none is named, or

@@ -3,8 +3,10 @@
 guarded pages (every file `paths.protected` matches) change only through an entry of the log applied on the branch;
 `guard` proves it against the merge-base with origin/<base> (`base` of omc/config.yaml; "main" below is that base),
 comparing the pages' normalized text (what the link tools write without a decision is stripped). The vault is the top
-folder of the log's path (docs/ by default): the tool works with paths relative to it (`configure`). With no log and
-no protected page it is idle: every read verb prints nothing and exits 0. The entry form, the names `Affected` takes and the rules of `check` and `trim` are
+folder of the log's path: the tool works with paths relative to it (`configure`). The log is opt-in: with no
+`paths.decision_log` configured, every verb that only reads or maintains the log prints nothing and exits 0 and every
+verb that writes an entry refuses (NO_LOG). With a log configured but no file yet and no protected page it is idle:
+every read verb prints nothing and exits 0. The entry form, the names `Affected` takes and the rules of `check` and `trim` are
 omc/tools/decisions/FORMAT.md; every link the tool writes follows docs/LINKS.md, relative to the log. git is read
 only in `git_inputs`, `origin_main_log` (undefer's), renumber's reads (`operation_in_progress`, `branch_files`, `base_refs`) and `committed_heads`
 (update's and remove's); every other function takes texts.
@@ -30,6 +32,9 @@ import config  # noqa: E402
 # files (repo-relative)
 VAULT = LOG = PROTECTED = QUESTIONS = SPECS = THEMES = None
 READ_VERBS = ('check', 'guard', 'pending', 'list')  # what an idle tool (no log, no protected page) answers silently
+# The verbs that write an entry: refused (NO_LOG) when no log is configured; every other verb is then silent
+WRITE_VERBS = ('add-decision', 'apply-decision', 'defer', 'undefer', 'confirm', 'overrule', 'update', 'remove')
+NO_LOG = 'no decision log configured: set paths.decision_log in omc/config.yaml to enable one'
 FIELDS = ['Context', 'Decision', 'Automated', 'Affected', 'Source', 'Status']
 ENTRY_RE = re.compile(r'^### (\d+) (.+?)\s*$')
 FIELD_RE = re.compile(r'^\*\*(' + '|'.join(FIELDS) + r')\.\*\* ?(.*)$')
@@ -199,8 +204,15 @@ def configure(paths, vault=None):
     """Sets the tool's paths from [paths] (config.Paths): the vault is [vault] (repo-relative; --docs) or else the top
     folder of the log's path (the repository's root for a log there), the log relative to it. RefError when the log,
     a glob of `paths.protected` or `paths.themes` (its literal part, up to its first wildcard) or `paths.questions`
-    lies outside the vault: the tool reads only the vault, so what lies outside would go unseen."""
+    lies outside the vault: the tool reads only the vault, so what lies outside would go unseen. With no log
+    configured (`paths.decision_log` absent) LOG is None and no vault is required: the vault is [vault] or the
+    repository's root, nothing checked against it."""
     global VAULT, LOG, PROTECTED, QUESTIONS, SPECS, THEMES, ANCHOR_RE
+    PROTECTED, QUESTIONS, SPECS, THEMES = tuple(paths.protected), paths.questions, paths.specs, tuple(paths.themes)
+    if paths.decision_log is None:
+        vault = posixpath.normpath(vault) if vault else '.'
+        VAULT, LOG, ANCHOR_RE = '' if vault == '.' else vault + '/', None, None
+        return
     if vault is None:
         vault = paths.decision_log.partition('/')[0] if '/' in paths.decision_log else ''
     vault = posixpath.normpath(vault) if vault else '.'
@@ -216,9 +228,10 @@ def configure(paths, vault=None):
     VAULT, LOG = prefix, log
     # the whole file name: `design-decision-log.md#2` is no link to an entry of `decision-log.md`
     ANCHOR_RE = re.compile(r'(?<![\w.-])(' + re.escape(posixpath.basename(log)) + r'#)(\d+(?=%20|\s))')
-    PROTECTED, QUESTIONS, SPECS, THEMES = tuple(paths.protected), paths.questions, paths.specs, tuple(paths.themes)
 
 
+# On import, until `configured` reads the project's config: no log, as an absent `paths.decision_log` means (an
+# in-process caller that needs one configures it)
 configure(config.Paths())
 
 
@@ -1484,7 +1497,12 @@ def main(argv=None):
         repo = repo_of(vault.root)
         return deleted(git_inputs(*repo).changes) if repo else frozenset()
     try:
-        vault = Vault(configured(args.docs))  # a story, rule or subtheme defined twice is a refusal, not a crash
+        root = configured(args.docs)
+        if LOG is None:  # no log configured: the read and maintain verbs are silent, the writing ones refused
+            if args.command in WRITE_VERBS:
+                raise RefError(NO_LOG)
+            return 0
+        vault = Vault(root)  # a story, rule or subtheme defined twice is a refusal, not a crash
         if not vault.is_file(LOG):
             if not PROTECTED and args.command in READ_VERBS:
                 return 0  # idle: no log, no protected page

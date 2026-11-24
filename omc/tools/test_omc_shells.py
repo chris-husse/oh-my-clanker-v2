@@ -157,6 +157,12 @@ class StartupArgvTest(unittest.TestCase):
             ["direnv", "exec", ".", "claude", "-n", "x", SEED],
         )
 
+    def test_startup_argv_puts_extra_before_the_seed(self):
+        self.assertEqual(
+            startup_argv(session_name="s", model="m", seed="/x", extra=("--add-dir", "/f")),
+            ["claude", "-n", "s", "--model", "m", "--add-dir", "/f", "/x"],
+        )
+
 
 class ShellsTest(unittest.TestCase):
     def test_detect_by_shell_env(self):
@@ -313,6 +319,30 @@ class ShellsTest(unittest.TestCase):
         self.assertIn(
             'python3 -I /r/omc/tools/terminal_title.py "$__omc_desired_title"', else_branch
         )
+
+    def test_fixed_title_has_no_branch_lookup(self):
+        argv, _ = detect_shell({"SHELL": "fish"}).build_invocation(
+            **ARGS, title_argv=FISH_TITLE_ARGV, fixed_title=True
+        )
+        body = argv[3]
+        self.assertNotIn("git branch --show-current", body)
+        self.assertIn("set -g __omc_desired_title proj-1-fix", body)
+        self.assertLess(body.index("set -g OMC_FISH_TITLE_DISABLE 1"), body.index("if status is-interactive"))
+
+    def test_default_fish_title_still_follows_the_branch(self):
+        shell = detect_shell({"SHELL": "fish"})
+        for title_argv in (None, FISH_TITLE_ARGV):
+            with self.subTest(title_argv=title_argv):
+                old = shell.build_invocation(**ARGS, title_argv=title_argv, origin_cwd="/o")
+                self.assertEqual(
+                    shell.build_invocation(**ARGS, title_argv=title_argv, origin_cwd="/o", fixed_title=False), old
+                )
+        self.assertIn("git branch --show-current", shell.build_invocation(**ARGS, title_argv=FISH_TITLE_ARGV)[0][3])
+
+    def test_exec_interactive_forwards_fixed_title(self):
+        with _Exec() as run:
+            FishShell().exec_interactive(**ARGS, title_argv=FISH_TITLE_ARGV, fixed_title=True)
+        self.assertNotIn("git branch --show-current", run.executed()[0][3])
 
     def test_the_hooked_helper_is_the_checkouts_just_omc(self):
         root = os.path.dirname(os.path.dirname(HERE))

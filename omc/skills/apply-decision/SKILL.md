@@ -20,7 +20,8 @@ initiative.
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; the configured paths of `omc/config.yaml` are written out in each
-command: `<log>` is `paths.decision_log`, `<questions>` the folder `paths.questions` (ending with `/`), `<themes>…` the
+command: `<log>` is `paths.decision_log` (no log configured: `<log>` is dropped from the command, and a step about the
+log is skipped), `<questions>` the folder `paths.questions` (ending with `/`), `<themes>…` the
 theme files `paths.themes` matches and `<protected>…` the files `paths.protected` matches (an empty list leaves its read
 out). The log is written only through `just decisions` (`just decisions <subcommand> --help`); its subcommands are
 `add-decision`, `apply-decision`, `defer`, `undefer`, `update`, `remove`, `confirm`, `overrule`, `show`, `list`,

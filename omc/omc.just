@@ -35,7 +35,30 @@ design *ARGS:
 @_design-start *ARGS:
     {{omc_py}} omc/tools/design.py "$@"
 
-# The decision log's tool (omc/tools/decisions/FORMAT.md), the log at paths.decision_log: add-decision, apply-decision, defer, undefer, confirm, overrule, update, remove, show, list, pending, guard, trim, renumber, check (--help)
+# Investigate on prod, always: the text, from any checkout; first, in this shell before any Python, the primary checkout pulled (fetch and fast-forward of origin/<base>, when it is on <base> with no tracked changes; any failure left to investigate.py), then the primary's pulled justfile runs _investigate-start: refused without the primary's omc/hook/investigation/investigation-context.prod.md; in line behind a design start: the primary checked (on the base branch, clean, not diverged) and pulled again (a move a [warn]); the slug; GitNexus installed and its index refreshed (never stopping the start); the empty folder ../investigations/<slug>-<YYYYMMDD-HHMMSS> beside the primary; then the interactive shell in the primary, titled the slug, which runs `claude … --add-dir <folder> --settings <deny rules> '/investigate prod <text>'`; one line per step on stderr
+[no-exit-message]
+[positional-arguments]
+investigate *ARGS:
+    #!/usr/bin/env bash
+    set -u
+    common=$(git rev-parse --path-format=absolute --git-common-dir) || exit 2
+    primary=$(dirname "$common")
+    base=$(sed -n 's/^base:[[:space:]]*\([^[:space:]#]*\).*/\1/p' "$primary/omc/config.yaml" 2>/dev/null)
+    if [ -n "$base" ] && [ "$(git -C "$primary" symbolic-ref --short -q HEAD)" = "$base" ] \
+        && [ -z "$(git -C "$primary" status --porcelain --untracked-files=no)" ]; then
+        git -C "$primary" fetch -q origin "$base" >/dev/null 2>&1 \
+            && git -C "$primary" merge -q --ff-only "origin/$base" >/dev/null 2>&1
+    fi
+    exec {{quote(just_executable())}} --justfile "$primary"/{{quote(file_name(justfile()))}} \
+        --working-directory "$primary" _investigate-start {{quote("--origin=" + invocation_directory())}} "$@"
+
+# investigate's second half, run from the primary's pulled justfile: investigate.py with the recipe's --origin= and arguments
+[no-exit-message]
+[positional-arguments]
+@_investigate-start *ARGS:
+    {{omc_py}} omc/tools/investigate.py "$@"
+
+# The decision log's tool (omc/tools/decisions/FORMAT.md), the log at paths.decision_log (opt-in: none configured, the read verbs are silent and the writing ones refuse): add-decision, apply-decision, defer, undefer, confirm, overrule, update, remove, show, list, pending, guard, trim, renumber, check (--help)
 [positional-arguments]
 decisions *ARGS:
     {{omc_py}} omc/tools/decisions/decisions.py "$@"
@@ -45,7 +68,7 @@ decisions *ARGS:
 design-integrity-check *ARGS:
     {{omc_py}} omc/tools/decisions/integrity.py "$@"
 
-# Check the links of the docs vault, the top folder of paths.decision_log (no LLM), in the files of paths.links (absent: the paths.protected files and the question files), the paths.themes files and the log: escapes, dead files and headings, link form, unlinked references, wrong targets, the pins of the log and the question files, the stories' rule references; then the project's own checks, omc/bin/links-check, when it has one (red when either is)
+# Check the links of the docs vault, the top folder of paths.decision_log (the repository when none) (no LLM), in the files of paths.links (absent: the paths.protected files and the question files), the paths.themes files and the log: escapes, dead files and headings, link form, unlinked references, wrong targets, the pins of the log and the question files, the stories' rule references; then the project's own checks, omc/bin/links-check, when it has one (red when either is)
 links-check:
     #!/usr/bin/env bash
     set -u

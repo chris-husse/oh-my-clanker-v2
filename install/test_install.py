@@ -331,6 +331,13 @@ class Fresh(Case):
         self.assertFalse(os.path.exists(os.path.join(self.project, 'omc/bin')))
         self.assertEqual(self.read('omc/VERSION'), sha + '\n')
 
+    def test_fresh_does_not_copy_hook_from_v2(self):
+        # omc/hook/ is the project's own, like omc/bin/; were v2 to commit one, the install still leaves it out
+        self.write(self.v2, 'omc/hook/investigation/investigation-context.prod.md', 'v2 prod\n')
+        self.commit(self.v2, 'a hook by mistake')
+        self.assertEqual(self.install().returncode, 0)
+        self.assertFalse(os.path.exists(os.path.join(self.project, 'omc/hook')))
+
     def test_fresh_over_an_existing_omc_lists_what_it_replaced(self):
         self.write(self.project, 'omc/config.yaml', 'base: trunk\n')
         self.write(self.project, 'omc/tools/a.txt', 'a\n')  # the same as shipped: no line
@@ -556,6 +563,18 @@ class Update(Case):
         self.assertFalse(os.path.exists(os.path.join(self.project, 'omc/bin/other')))
         self.assertEqual(self.read('omc/tools/a.txt'), 'A\n')
 
+    def test_update_leaves_hook(self):
+        self.installed()
+        hook = 'omc/hook/investigation/investigation-context.prod.md'
+        self.write(self.project, hook, 'project prod\n')
+        self.commit(self.project, 'own hook')
+        self.v2_commit({hook: 'v2 prod\n', 'omc/tools/a.txt': 'A\n'})
+        r = self.install()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.read(hook), 'project prod\n')
+        self.assertNotIn('omc/hook', r.stdout)
+        self.assertEqual(self.read('omc/tools/a.txt'), 'A\n')
+
     def test_update_keeps_project_additions_and_takes_new_exec_bit(self):
         self.installed()
         self.write(self.project, 'omc/tools/mine.txt', 'mine\n')
@@ -572,7 +591,11 @@ class RealV2(Case):
     def test_version_never_shipped(self):
         listed = self.git(REPO, 'ls-files', 'omc').splitlines()
         self.assertNotIn('omc/VERSION', listed)
-        self.assertFalse([p for p in listed if p.startswith('omc/bin/')])
+        # v2 tracks its own gates in omc/bin/ (AGENTS.md); the install of the real v2 never ships them
+        self.assertTrue([p for p in listed if p.startswith('omc/bin/')])
+        r = self.install(script=SCRIPT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.project, 'omc/bin')))
 
     def test_fresh_from_real_v2(self):
         r = self.install(script=SCRIPT)

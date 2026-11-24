@@ -1,6 +1,6 @@
 """`just install <project-folder>`: puts v2's omc/ into a project, which then owns its copy (v2 is no runtime
 dependency). v2 is the repository holding this script; what it ships is the committed omc/ at its HEAD (never the
-working tree, never omc/VERSION or omc/bin/).
+working tree, never omc/VERSION, omc/bin/ or omc/hook/).
 
 - Refused (exit 2, `error: <why>` on stderr, nothing written): the folder is not the top of a git work tree, its tree
   is dirty (untracked files count), v2's HEAD cannot be resolved, a `.claude/skills/<name>` omc links is already the
@@ -14,8 +14,8 @@ working tree, never omc/VERSION or omc/bin/).
 - Update (omc/VERSION present): per shipped path of the base (the commit in VERSION) or of v2's HEAD, a three-way
   merge of the project's file, the base's and HEAD's (`git merge-file`): a clean merge is written; a conflicted one is
   written with its markers and listed `CONFLICT <path>`; a file deleted on one side and changed on the other is left
-  as the project has it and listed `KEPT <path> (<why>)`. omc/bin/ is never touched; a file only the project has
-  stays.
+  as the project has it and listed `KEPT <path> (<why>)`. omc/bin/ and omc/hook/ are never touched; a file only the
+  project has stays.
 - Then, either way: omc/VERSION is v2's HEAD; `.claude/skills/<name>` links to ../../omc/pipeline/<name> (brainstorm,
   design, implement, audit), ../../omc/terminals/<name> (check, build, verify) and ../../omc/skills/<name> (each),
   when the project has the skill's SKILL.md; an update links only a skill new since the base, so a skill or link the
@@ -83,7 +83,7 @@ def git(cwd, *args, data=None):
 
 
 def shipped(path):
-    return path != VERSION and not path.startswith('omc/bin/')
+    return path != VERSION and not path.startswith(('omc/bin/', 'omc/hook/'))
 
 
 def tree(sha):

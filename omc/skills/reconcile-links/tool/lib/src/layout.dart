@@ -8,7 +8,8 @@ import 'scope.dart';
 /// Where the vault is and which of its files the tool reads, from `paths` of the repository's `omc/config.yaml`
 /// (each key's default when the file or the key is missing, as omc/tools/config.py has them): the vault is the top
 /// folder of `paths.decision_log` (the repository itself for a log at its root); the log, `paths.protected`,
-/// `paths.themes`, `paths.questions` and `paths.links` become the vault-relative [Scope].
+/// `paths.themes`, `paths.questions` and `paths.links` become the vault-relative [Scope]. The log is opt-in: with no
+/// `paths.decision_log` there is none, and no vault is required: the vault is the repository itself.
 class Layout {
   Layout(this.vault, this.label, this.scope);
 
@@ -21,17 +22,16 @@ class Layout {
   /// The files the tool reads, relative to the vault.
   final Scope scope;
 
-  /// The decision log, a posix path relative to the vault.
-  String get log => scope.log!;
+  /// The decision log, a posix path relative to the vault; null: no log configured.
+  String? get log => scope.log;
 }
 
-const defaultLog = 'docs/decision-log.md';
 const defaultBase = 'main';
 const defaultQuestions = 'docs/reviews/';
 
 /// The [Layout] of the repository at [repo]; StateError on a config that is no YAML mapping, a key of the wrong
-/// type, a log path that leaves the repository, or a glob or the questions folder outside the vault (the tool reads
-/// only the vault, as the decisions tool refuses them).
+/// type, a log path that leaves the repository, or a glob or the questions folder outside the vault of a configured
+/// log (the tool reads only the vault, as the decisions tool refuses them).
 Layout layoutOf(String repo) {
   final config = File(p.join(repo, 'omc', 'config.yaml'));
   Map paths = const {};
@@ -54,7 +54,17 @@ Layout layoutOf(String repo) {
     return [for (final g in v) g as String];
   }
 
-  final logPath = str('decision_log', defaultLog);
+  final logPath = paths['decision_log'] == null ? null : str('decision_log', '');
+  if (logPath == null) {
+    // no log configured: no vault required, the repository is the vault
+    final scope = Scope(
+      protected: globs('protected'),
+      themes: globs('themes'),
+      questions: str('questions', defaultQuestions),
+      links: paths['links'] == null ? null : globs('links'),
+    );
+    return Layout(p.normalize(repo), '.', scope);
+  }
   final norm = p.posix.normalize(logPath);
   if (p.posix.isAbsolute(norm) || norm == '..' || norm.startsWith('../')) {
     throw StateError('paths.decision_log $logPath leaves the repository');

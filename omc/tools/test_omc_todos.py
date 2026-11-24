@@ -128,6 +128,14 @@ class Sources(TodosTest):
     def test_no_log_on_main_is_none(self):
         self.assertEqual(self.of('deferred'), [])
 
+    def test_no_log_configured_is_none(self):
+        """Absent means off: main's file at the old default path is no log when the config names none."""
+        path = os.path.join(self.repo.work, 'omc', 'config.yaml')
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+        self.files({'omc/config.yaml': text.replace(f'  decision_log: {LOG}\n', ''), LOG: LOG_TEXT}, push=True)
+        self.assertEqual(self.of('deferred'), [])
+
     def test_open_questions_of_question_files(self):
         self.files({'docs/reviews/2026-11-20-x-1.md': QUESTIONS,
                     'docs/reviews/review-notes.md': '# Review\n\n### Q1 Not a question file\n**Status.** open\n',

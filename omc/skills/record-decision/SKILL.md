@@ -15,6 +15,11 @@ ruling of a round, and any flow where the owner rules in passing, a remark in a 
 a step the owner authorizes, so it needs no lifecycle word; inside `/design`, `/implement` or `/audit` it is part of
 that skill's work.
 
+**No log configured.** The log is opt-in: when `omc/config.yaml` names no `paths.decision_log` (as shipped), there is
+no log to write. The ruling is not recorded: the report says so in one line (`Not recorded: no decision log is
+configured (paths.decision_log)`), the ruling stays in the conversation and in the record, and the calling flow goes on
+as if the entry had been written. No `just decisions` command is run, and none is turned into a stop.
+
 It writes one entry into the log (`paths.decision_log` of `omc/config.yaml`) through the decision tool; the entry, the
 names `Affected` takes and the question file are in `omc/tools/decisions/FORMAT.md`; read it first. It edits no
 protected document (a file `paths.protected` matches): `/apply-decision` does that. Until the entry is applied, the

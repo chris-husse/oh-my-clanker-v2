@@ -26,6 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import config  # noqa: E402
 import design  # noqa: E402
+import fish_integration  # noqa: E402
+from terminal_title import terminal_title_argv  # noqa: E402
 from omc_fixtures import FakeGitNexus, Repo  # noqa: E402
 
 TOOL = os.path.join(HERE, 'design.py')
@@ -454,11 +456,11 @@ class DesignTest(DesignCase):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report')
         fish = self.assertStarted(r, branch, 'add a weekly payout report\n')['argv'][2]
         self.assertIn(f'set -g __omc_desired_title {branch}; ', fish)
-        self.assertIn(shlex.join(design.terminal_title_argv()) + ' "$__omc_desired_title"; or true', fish)
+        self.assertIn(shlex.join(terminal_title_argv()) + ' "$__omc_desired_title"; or true', fish)
         self.again()
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', env={'SHELL': '/bin/sh'})
         sh = self.assertStarted(r, branch, 'add a weekly payout report\n', shell='sh')['argv'][1]
-        self.assertTrue(sh.startswith(shlex.join([*design.terminal_title_argv(), branch]) + ' || :; '), sh)
+        self.assertTrue(sh.startswith(shlex.join([*terminal_title_argv(), branch]) + ' || :; '), sh)
 
     def test_inside_herdr_the_tab_is_labelled_with_the_slug(self):
         log = os.path.join(self.repo.root, 'herdr.log')
@@ -535,7 +537,7 @@ class DesignTest(DesignCase):
         r = self.design('add a weekly payout report', slugs='add-weekly-payout-report', platform='darwin')
         self.assertStarted(r, 'feature/add-weekly-payout-report', 'add a weekly payout report\n')
         with open(hook, 'rb') as f:
-            self.assertEqual(f.read(), design.fish_integration.installed_hook())
+            self.assertEqual(f.read(), fish_integration.installed_hook())
         lines = self.steps(r)
         at = lines.index('→ fish title hook: reconciling [ok]')
         self.assertTrue(lines[at + 1].startswith('→ lock:'), r.stderr)  # before the lock and the worktree
@@ -744,6 +746,16 @@ class Deferred(DesignCase):
         self.assertIsNone(self.read(self.prompts))
         self.assertIsNone(self.read(self.wt_log))
         self.assertIsNone(self.read(self.shell_log))
+
+    def test_refuses_with_no_log_configured(self):
+        with open(os.path.join(self.repo.work, 'omc', 'config.yaml'), encoding='utf-8') as f:
+            text = f.read()
+        self.repo.commit('omc/config.yaml', text.replace('  decision_log: docs/decision-log.md\n', ''), 'no log')
+        self.repo.git('push', '-q', 'origin', 'main')
+        r = self.design('--deferred', '41', slugs='never-asked-for-this')
+        self.assertRefused(r, 'no decision log configured: set paths.decision_log in omc/config.yaml to enable one')
+        self.assertIsNone(self.read(self.prompts))
+        self.assertIsNone(self.read(self.wt_log))
 
 
 if __name__ == '__main__':

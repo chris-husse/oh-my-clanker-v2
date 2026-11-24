@@ -91,9 +91,11 @@ def tasks(root, paths):
 
 
 def deferred(root, cfg):
-    """The deferred entries of `origin/<base>`'s log; none when there is no such ref or log."""
+    """The deferred entries of `origin/<base>`'s log; none when no log is configured, or there is no such ref or log."""
     import decisions
     log_path = cfg.paths.decision_log
+    if log_path is None:
+        return []
     r = repo.git(root, 'show', f'origin/{cfg.base}:{log_path}')
     if r.returncode != 0:
         return []

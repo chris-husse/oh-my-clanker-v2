@@ -27,59 +27,34 @@ the origin, which runs `claude -n <slug> [--model <orchestrator-model>] '/brains
 `invocation_directory()`, handed on through `_design-start`; else `$PWD`) is taken off before the brief's.
 `--deferred <ids>` (a later branch picking up rulings left deferred on the base, `just omc todos`) takes the
 brief from the deferred entries of `origin/<base>`'s log (`# Deferred rulings <ids>`, then each entry's title, Context
-and Decision; an id unknown there or not deferred is refused before the lock), its slug asked of `claude -p` as for
-free text; then the start goes on as with a brief. The standard library and pyyaml (config.py), through the justfile's
-`uv run`; exit 2 with `error: <why>` on every refusal."""
-import fcntl
+and Decision; an id unknown there or not deferred, or no log configured, is refused before the lock), its slug asked of `claude -p` as for
+free text; then the start goes on as with a brief. The pieces `just investigate` shares (the check, the pull, the lock,
+the slug's `claude -p`, GitNexus, the environment, the launch tail) are launch.py's, imported here. The standard library
+and pyyaml (config.py), through the justfile's `uv run`; exit 2 with `error: <why>` on every refusal."""
 import json
 import os
 import re
 import subprocess
 import sys
-import threading
-import time
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)  # python -I leaves the script's directory off the path
 import config  # noqa: E402
-import fish_integration  # noqa: E402
 import gitnexus  # noqa: E402
-import herdr  # noqa: E402
+import launch  # noqa: E402
 import notify  # noqa: E402
 import repo  # noqa: E402
 import shells  # noqa: E402
-from terminal_title import terminal_title_argv  # noqa: E402
-from terminals import detect_terminal  # noqa: E402
-from toolctx import Ctx, OmcError  # noqa: E402
+from launch import (  # noqa: E402,F401 (re-exported: design.<name> as before the move)
+    GITNEXUS_LOCK, LOCK, PROMPT, PROVIDER, SLUG_FORM, TITLE_OFF, Refused, ask_claude, ask_slug, check_primary,
+    gitnexus_steps, has_direnv, launch_env, lock, pull, reconcile_fish, say, step)
 
-Refused = config.Refused  # exit 2, `error: <why>`
-
-LOCK = os.path.join('.cache', 'omc', 'design.lock')
-GITNEXUS_LOCK = os.path.join('.cache', 'omc', 'gitnexus.lock')  # the refresh's, outside the start's
 BRIEF = os.path.join('.cache', 'omc', 'brief.md')
 SESSION = '/brainstorm .cache/omc/brief.md'
-PROVIDER = 'claude'
-TITLE_OFF = {'CLAUDE_CODE_DISABLE_TERMINAL_TITLE': '1'}  # omc's claude provider's `title_env`
 KEBAB = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
-SLUG_FORM = re.compile(r'^[a-z0-9]+(-[a-z0-9]+){2,5}$')  # three to six words
 DEFERRED_IDS = re.compile(r'^\d+(,\d+)*$')
 NOTHING = 'nothing to start: `just design <brief-or-text>`, a brief ({briefs}<name>.md) or a sentence'
-PROMPT = ('Reply with only a git branch slug for this piece of work: kebab-case, three to six lowercase ASCII words or '
-          'numbers, nothing else. The work: {text}')
-
-
-def ask_claude(prompt):
-    """One `claude -p <prompt>` call (the owner's default model), its terminal title off; its stdout."""
-    try:
-        r = subprocess.run(('claude', '-p', prompt), stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                           env={**os.environ, **TITLE_OFF})
-    except OSError as e:
-        raise Refused(f'cannot run claude: {e.strerror}') from None
-    if r.returncode != 0:
-        lines = r.stderr.strip().splitlines()
-        raise Refused(f'claude -p exited {r.returncode}' + (f': {lines[-1]}' if lines else ''))
-    return r.stdout
 
 
 def slug_of(args, ask, briefs=config.Paths().briefs):
@@ -104,19 +79,6 @@ def slug_of(args, ask, briefs=config.Paths().briefs):
     return ask_slug(text, ask), text + '\n'
 
 
-def ask_slug(text, ask):
-    """The slug [ask] (a callable of the prompt) gives for [text], asked once more when its form is wrong, then
-    refused."""
-    answers = []
-    for _ in range(2):
-        answer = ask(PROMPT.format(text=text.strip())).strip()
-        if SLUG_FORM.match(answer):
-            return answer
-        answers.append(answer)
-    raise Refused('claude gave no slug of three to six kebab-case words, twice: '
-                  + ', '.join(repr(a) for a in answers))
-
-
 def deferred_ids(args):
     """The ids of `--deferred <ids>` or `--deferred=<ids>` (comma-separated numbers, nothing after them), or None
     when [args] does not start with `--deferred`."""
@@ -131,9 +93,12 @@ def deferred_ids(args):
 def deferred_brief(primary, base, ids, log_path):
     """The brief of the deferred entries [ids] of `origin/<base>`'s log, [log_path] (`paths.decision_log`):
     `# Deferred rulings <ids>`, then per entry `## <n>. <title>` and its Context and Decision. Refused when main's
-    log is not there, or an id names no entry of it or one that is not deferred (recorded, or applied)."""
+    log is not there, or an id names no entry of it or one that is not deferred (recorded, or applied); refused with
+    decisions.NO_LOG when no log is configured ([log_path] None)."""
     sys.path.append(os.path.join(HERE, 'decisions'))  # decisions
     import decisions
+    if log_path is None:
+        raise Refused(decisions.NO_LOG)
     r = repo.git(primary, 'show', f'origin/{base}:{log_path}')
     if r.returncode != 0:
         raise Refused(f'origin/{base} holds no {log_path}: {repo.why(r)}')
@@ -148,152 +113,6 @@ def deferred_brief(primary, base, ids, log_path):
         parts.append(f'## {n}. {e.title}\n\n**Context.** {e.fields.get("Context", "")}\n'
                      f'**Decision.** {e.fields.get("Decision", "")}')
     return '\n\n'.join(parts) + '\n'
-
-
-def say(text, end='\n'):
-    sys.stderr.write(text + end)
-    sys.stderr.flush()
-
-
-class step:
-    """One step line, a context manager: `→ <what> …` at the start, then the end word, `[ok]` unless the block
-    calls `.warn(why)`; a Refused or Failed raised inside ends it `[failed] <why>` and goes on up. `.what` may be
-    changed inside the block (the line is written again). `long` adds the elapsed time before the end word (from one
-    second on) and keeps the line alive while it runs: refreshed in place every ten seconds on a TTY, a line
-    `  · <what>: <time>` once a minute off one; off a TTY a short step writes its line at the end only. `.say` takes
-    the lines of what the step runs (gitnexus's): kept, and shown under the line when it ends `[warn]`. `quick`: a
-    check, whose line has no `…` (`→ slug: <slug> [ok]`)."""
-
-    def __init__(self, what, long=False, quick=False):
-        self.what, self.long, self.dots = what, long, '' if quick else ' …'
-        self.tty = sys.stderr.isatty()
-        self.notes, self.word = [], '[ok]'
-        self.open = None  # the what of the line written without its end, while it stays so
-        self.mutex, self.done = threading.Lock(), threading.Event()
-
-    def say(self, line):
-        self.notes.append(line)
-
-    def warn(self, why):
-        self.word = f'[warn] {why}'
-
-    def elapsed(self):
-        seconds = time.monotonic() - self.start
-        return f' {gitnexus.clock(seconds)}' if self.long and seconds >= 1 else ''
-
-    def beat(self):
-        while not self.done.wait(10 if self.tty else 60):
-            with self.mutex:
-                if self.tty:
-                    say(f'\r\033[K→ {self.what}{self.dots}{self.elapsed()}', end='')
-                else:
-                    say(('\n' if self.open else '') + f'  · {self.what}:{self.elapsed()}')
-                    self.open = None
-
-    def __enter__(self):
-        self.start = time.monotonic()
-        if self.tty or self.long:
-            say(f'→ {self.what}{self.dots}', end='')
-            self.open = self.what
-        if self.long:
-            self.ticker = threading.Thread(target=self.beat, daemon=True)
-            self.ticker.start()
-        return self
-
-    def __exit__(self, kind, error, _tb):
-        if self.long:
-            self.done.set()
-            self.ticker.join()
-        if isinstance(error, (Refused, gitnexus.Failed)):
-            self.word = f'[failed] {(str(error).splitlines() or [kind.__name__])[0]}'
-        elif error is not None:
-            self.word = f'[failed] {kind.__name__}'
-        line = f'→ {self.what}{self.dots}{self.elapsed()} {self.word}'
-        with self.mutex:
-            if self.tty:
-                say(f'\r\033[K{line}')
-            elif self.open == self.what:
-                say(f'{self.elapsed()} {self.word}')
-            else:
-                say(('\n' if self.open else '') + line)
-            self.open = None
-        if self.word.startswith('[warn]'):
-            for note in self.notes:
-                if not note.endswith('[ok]'):
-                    say(f'  {note}')
-        return False
-
-
-def check_primary(primary, base):
-    """Refused unless the primary checkout is on [base], with no tracked changes (untracked files are none) and not
-    diverged from `origin/<base>` (behind only is pulled, ahead only is not diverged)."""
-    branch = repo.git(primary, 'symbolic-ref', '--short', '-q', 'HEAD').stdout.strip()
-    if branch != base:
-        raise Refused(f'the primary checkout is on {branch or "a detached HEAD"}, not {base}: '
-                      f'just design cuts its worktrees from {base} ({primary})')
-    if repo.output(primary, 'status', '--porcelain', '--untracked-files=no').strip():
-        raise Refused(f'the primary checkout has changes: commit or stash them first ({primary})')
-    counts = repo.output(primary, 'rev-list', '--left-right', '--count', f'HEAD...origin/{base}').split()
-    if len(counts) == 2 and counts[0] != '0' and counts[1] != '0':
-        raise Refused(f'the primary checkout has diverged from origin/{base}: {counts[0]} commits ahead, '
-                      f'{counts[1]} behind ({primary})')
-
-
-def pull(primary, base):
-    """`git fetch origin <base>` and `git merge --ff-only origin/<base>` in the primary; (the sha before, the sha
-    after). A failed fetch or a refused fast-forward is Refused."""
-    repo.output(primary, 'fetch', '-q', 'origin', base)
-    before = repo.output(primary, 'rev-parse', 'HEAD').strip()
-    repo.output(primary, 'merge', '-q', '--ff-only', f'origin/{base}')
-    return before, repo.output(primary, 'rev-parse', 'HEAD').strip()
-
-
-def lock(primary):
-    """The start's lock, held (an open file; closing it releases the lock): taken at once when free, else when the
-    other start releases it, its step line open while it waits."""
-    path = os.path.join(primary, LOCK)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    f = open(path, 'a')
-    with step('lock: waiting for another start', long=True):
-        try:
-            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            fcntl.flock(f, fcntl.LOCK_EX)
-    return f
-
-
-def gitnexus_steps(cfg, primary):
-    """The install, then the refresh of the primary's index at its HEAD, after the start's lock is released and under
-    the primary's own `.cache/omc/gitnexus.lock`, taken without waiting: held by another start, which refreshes the
-    same index, both are left to it (`→ GitNexus: another start is refreshing the index [ok]`). Neither refuses the
-    start: a failure is its step's `[failed] <why>` and the line `GitNexus is stale: /explain answers from <sha or "no
-    index">` (a failed install skips the refresh)."""
-    path = os.path.join(primary, GITNEXUS_LOCK)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'a') as held:
-        try:
-            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            say('→ GitNexus: another start is refreshing the index [ok]')
-            return
-        _gitnexus_steps(cfg, primary)
-
-
-def _gitnexus_steps(cfg, primary):
-    try:
-        with step(f'GitNexus: checking the build at {cfg.gitnexus_commit[:7]}', long=True) as s:
-            gitnexus.install(cfg, s.say)
-        head = repo.output(primary, 'rev-parse', 'HEAD').strip()
-        how = ' (embeddings)' if gitnexus.runtime_ready() else ''
-        with step(f'GitNexus: refreshing the index at {head[:7]}{how}', long=True) as s:
-            if gitnexus.refresh(primary, cfg.base, s.say) == 'keyword-only':
-                capped = any('embedding cap' in note for note in s.notes)
-                s.warn('keyword-only (over the embedding cap)' if capped else 'keyword-only (embedding failed)')
-    except (Refused, gitnexus.Failed) as e:
-        at = gitnexus.indexed_at(primary)
-        say(f'GitNexus is stale: /explain answers from {at[:7] if at else "no index"}')
-        for line in str(e).splitlines()[1:]:  # a build's output tail, under the line
-            say(f'  {line}')
 
 
 def worktree(primary, branch, base):
@@ -324,41 +143,10 @@ def worktree(primary, branch, base):
     return path
 
 
-def has_direnv(env):
-    """Whether `direnv version` runs (exit 0, 5 s) on [env]'s PATH: omc's `probe.has_direnv`."""
-    try:
-        r = subprocess.run(('direnv', 'version'), stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5,
-                           env=env)
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return r.returncode == 0
-
-
 def startup(slug, model, direnv):
     """The launch shell's startup argv: `claude -n <slug> [--model <model>] '/brainstorm .cache/omc/brief.md'`,
     under `direnv exec .` when [direnv] (omc's `providers/claude.py:149-158`, `session.py:59-60`)."""
     return shells.startup_argv(session_name=slug, model=model, seed=SESSION, direnv=direnv)
-
-
-def launch_env(env, slug):
-    """[env] for the launch shell (omc's `session.py:74-77`): the `uv` venv taken out (`VIRTUAL_ENV`, and its `bin`
-    off `PATH`), `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`, `OMC_SLUG` and `OMC_PROVIDER` set."""
-    env = dict(env)
-    venv = env.pop('VIRTUAL_ENV', '')
-    if venv and 'PATH' in env:
-        drop = os.path.normpath(os.path.join(venv, 'bin'))
-        env['PATH'] = os.pathsep.join(d for d in env['PATH'].split(os.pathsep) if os.path.normpath(d) != drop)
-    env.update(TITLE_OFF, OMC_SLUG=slug, OMC_PROVIDER=PROVIDER)
-    return env
-
-
-def reconcile_fish():
-    """macOS only: `just omc shell-integration fish reconcile`, as omc's install ran it; never refuses the start."""
-    with step('fish title hook: reconciling', quick=True) as s:
-        try:
-            fish_integration.run_fish_integration(Ctx.from_env(), 'reconcile')
-        except (OmcError, OSError) as e:
-            s.warn(str(e).splitlines()[0] if str(e) else type(e).__name__)
 
 
 def main(argv=None):
@@ -412,19 +200,7 @@ def main(argv=None):
             say(f'→ notifications: {", ".join(wired)} [ok]')
         env = launch_env(os.environ, slug)
         argv = startup(slug, cfg.orchestrator_model, has_direnv(env))
-        named = herdr.name_tab(Ctx.from_env(env), slug)  # the tab beside the title; None outside herdr
-        if named is not None:
-            say(f'→ herdr tab: {slug} ' + ('[ok]' if named else '[warn] herdr tab rename failed'))
-        shell = shells.detect_shell(env)
-        say(f'→ session: starting {shell.name} on claude "{SESSION}"')
-        os.environ.clear()
-        os.environ.update(env)
-        try:
-            shell.exec_interactive(cwd=path, title=branch, startup_argv=argv,
-                                   title_seq=detect_terminal(env).title_sequence(branch),
-                                   title_argv=terminal_title_argv(), origin_cwd=origin)
-        except OSError as e:
-            raise Refused(f'cannot run {shell.name}: {e.strerror}') from None
+        launch.launch(env, cwd=path, slug=slug, title=branch, argv=argv, origin=origin)
     except Refused as e:
         print(f'error: {e}', file=sys.stderr)
         return 2

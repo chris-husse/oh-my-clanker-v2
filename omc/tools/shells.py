@@ -24,8 +24,11 @@ from herdr import osc7_report  # noqa: E402
 TMPDIR_PLACEHOLDER = "{omc_tmpdir}"
 
 
-def startup_argv(*, session_name: str, model: str, seed: str, effort: str = "", direnv: bool = False) -> list[str]:
-    """`claude -n <session> [--model <model>] [--effort <effort>] <seed>`, under `direnv exec .` when asked."""
+def startup_argv(
+    *, session_name: str, model: str, seed: str, effort: str = "", direnv: bool = False, extra: tuple[str, ...] = ()
+) -> list[str]:
+    """`claude -n <session> [--model <model>] [--effort <effort>] [<extra>…] <seed>`, under `direnv exec .` when
+    asked."""
     argv = ["claude"]
     if session_name:
         argv += ["-n", session_name]  # resumable later via `claude --resume <name>`
@@ -33,6 +36,7 @@ def startup_argv(*, session_name: str, model: str, seed: str, effort: str = "", 
         argv += ["--model", model]
     if effort:
         argv += ["--effort", effort]
+    argv += extra
     argv.append(seed)
     if direnv:
         argv = ["direnv", "exec", ".", *argv]
@@ -64,7 +68,9 @@ class Shell(ABC):
         title_seq: str,
         title_argv: list[str] | None = None,
         origin_cwd: str | None = None,
-    ) -> tuple[list[str], dict[str, str]]: ...
+        fixed_title: bool = False,
+    ) -> tuple[list[str], dict[str, str]]:
+        """[fixed_title]: the title stays [title] for the shell's life, never replaced by the git branch."""
 
     def exec_env_overrides(self, tmpdir: str | None) -> dict[str, str]:
         return {}
@@ -78,6 +84,7 @@ class Shell(ABC):
         title_seq: str,
         title_argv: list[str] | None = None,
         origin_cwd: str | None = None,
+        fixed_title: bool = False,
     ) -> None:  # pragma: no cover - effectful exec, E2E-verified
         argv, extra_files = self.build_invocation(
             cwd=cwd,
@@ -86,6 +93,7 @@ class Shell(ABC):
             title_seq=title_seq,
             title_argv=title_argv,
             origin_cwd=origin_cwd,
+            fixed_title=fixed_title,
         )
         tmpdir: str | None = None
         if extra_files:
@@ -147,7 +155,7 @@ class FishShell(Shell):
         return os.path.basename(env.get("SHELL", "")) == "fish"
 
     def build_invocation(
-        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None
+        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None, fixed_title=False
     ):
         if title_argv:
             helper = shlex.join(title_argv)
@@ -157,9 +165,15 @@ class FishShell(Shell):
                 'function fish_title; printf "%s\\n" "$__omc_desired_title"; end',
                 "function __omc_refresh_title",
                 "set -l saved_status $status",
-                "set -l branch (command git branch --show-current 2>/dev/null)",
-                'if test $status -eq 0; and test -n "$branch"; '
-                'set -g __omc_desired_title "$branch"; end',
+                *(
+                    ()
+                    if fixed_title
+                    else (
+                        "set -l branch (command git branch --show-current 2>/dev/null)",
+                        'if test $status -eq 0; and test -n "$branch"; '
+                        'set -g __omc_desired_title "$branch"; end',
+                    )
+                ),
                 'if test "$__omc_last_attempt" != "$__omc_desired_title"',
                 'set -g __omc_last_attempt "$__omc_desired_title"',
                 f'{helper} "$__omc_desired_title"; or true',
@@ -183,6 +197,10 @@ class FishShell(Shell):
                 "__omc_title_refresh",
             ]
             parts = [f"if {_ITERM2_HOOK_PREDICATE}", *hooked, "else", *inline, "end"]
+            if fixed_title:
+                # The switch the iTerm2 hook and the predicate both honour: the hook leaves this tab alone and
+                # the inline path, which keeps the given title, runs there too.
+                parts.insert(0, "set -g OMC_FISH_TITLE_DISABLE 1")
         else:
             parts = [
                 f"function fish_title; echo {shlex.quote(title)}; end",
@@ -222,7 +240,7 @@ class ZshShell(Shell):
         return os.path.basename(env.get("SHELL", "")) == "zsh"
 
     def build_invocation(
-        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None
+        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None, fixed_title=False
     ):
         lines = [
             '[ -f "$HOME/.zshrc" ] && source "$HOME/.zshrc"',
@@ -277,7 +295,7 @@ class BashShell(Shell):
         return os.path.basename(env.get("SHELL", "")) == "bash"
 
     def build_invocation(
-        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None
+        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None, fixed_title=False
     ):
         rcfile = f"{TMPDIR_PLACEHOLDER}/{_RC_NAME}"
         lines = [
@@ -309,7 +327,7 @@ class ShShell(Shell):
         return True
 
     def build_invocation(
-        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None
+        self, *, cwd, title, startup_argv, title_seq, title_argv=None, origin_cwd=None, fixed_title=False
     ):
         # No portable exit hook in plain sh: origin_cwd is accepted and ignored (spec §4.3).
         startup = joined_startup(startup_argv)

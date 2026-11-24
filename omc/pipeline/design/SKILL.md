@@ -76,7 +76,8 @@ merge-base", "a question file", "the record", "the plan", "before implementation
 
 **Shell.** Variables do not survive between commands: begin every command with `ROOT=$(git rev-parse --show-toplevel)`
 and run it in a subshell, `(cd "$ROOT" && …)`; a value a command printed (`<record>`, `<old base>`, a path) is written
-out in the next one; so are the configured paths, read from `omc/config.yaml`: `<log>` is `paths.decision_log`,
+out in the next one; so are the configured paths, read from `omc/config.yaml`: `<log>` is `paths.decision_log` (no log
+configured: `<log>` is dropped from the command, and a step about the log is skipped),
 `<questions>` is `paths.questions` (a folder, ending with `/`), and `<protected>…` are the globs of `paths.protected`,
 each written as a `':(glob)<glob>'` pathspec. The log is written only through `just decisions` and `/record-decision`. A
 commit stages its paths by name, `git add -- <path>…`, never `git add -A` or `git add .`, and its message ends with

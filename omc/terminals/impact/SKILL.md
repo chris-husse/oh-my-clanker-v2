@@ -24,7 +24,8 @@ commits nothing, and runs no build, no test and no gate. Its only `just` command
 
 **Shell.** Variables do not survive between commands: run each in the root given, `(cd <root> && …)`; a value a command
 printed is written out in the next one; so are the configured paths, read from `omc/config.yaml`: `<log>` is
-`paths.decision_log`, `<specs>` and `<plans>` are `paths.specs` and `paths.plans` (folders, ending with `/`),
+`paths.decision_log` (no log configured: `<log>` is dropped from the command, and a step about the log is skipped),
+`<specs>` and `<plans>` are `paths.specs` and `paths.plans` (folders, ending with `/`),
 `<protected>…` are the globs of `paths.protected`, each written as a `':(glob)<glob>'` pathspec, and `<not shots>…`
 those of `paths.screenshots`, each as `':(glob,exclude)<glob>'` (none when the list is empty).
 `<base>` is `base` of `omc/config.yaml`, the base branch (`main` as shipped), read from the file and written out

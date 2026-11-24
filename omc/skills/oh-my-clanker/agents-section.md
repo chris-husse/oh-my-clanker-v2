@@ -21,6 +21,14 @@ between `omc:begin` and `omc:end` is omc's: an update replaces it. The owner typ
   ▣ screens-assess gives each changed shot its verdict by hash pair, then the owner's screenshot review), the owner's
   rulings on the run's entries and open questions (each applied or deferred), describe, push.
 
+`just investigate <text>`, in any checkout, investigates prod, always: it pulls the primary checkout's base branch
+(refused unless it is on it, clean and not diverged), names the tab after the slug of the text and launches Claude in
+the primary checkout seeded with `/investigate prod <text>`, its files in
+`../investigations/<slug>-<YYYYMMDD-HHMMSS>/` beside the primary checkout and nowhere else.
+`/investigate <env> <prompt>`, typed in any session, investigates any environment the project defines, read-only.
+Each environment's WHERE (namespaces, log scopes, databases, caveats) is the project's own
+`omc/hook/investigation/investigation-context.<env>.md`; without it the skill refuses.
+
 `just omc todos` lists the known open work (briefs, deferred rulings, open questions, the project's own sources in
 `omc/bin/todos`, `TODO` comments); `/summarize-todos` shows it all, each item with the `just design` that starts it,
 and `/find-related-todos` picks what fits a brief (the primer runs it).
@@ -39,10 +47,11 @@ decisions' mechanical check; `/audit`'s `verify` runs it with `--defer-questions
 ```text
 omc/config.yaml    the base, the branch prefix, the orchestrator model, the tiers and the complexity mapping, the hand-off flag, the paths
 omc/bin/           the project's gates (check, build, verify), its hooks (links-check, todos) and their notes; the project's own, never shipped
+omc/hook/          the project's own context for omc's skills (investigation/investigation-context.<env>.md, the WHERE of /investigate <env>); never shipped
 omc/pipeline/      brainstorm, design, implement, audit: the orchestrators, linked from .claude/skills/; they talk to the owner
 omc/terminals/     the subagent skills; each ends with one OUTCOME line and never talks to the owner
 omc/skills/        the skills the pipeline calls (decisions, doubts, questions, reviews, links), linked from .claude/skills/
-omc/tools/         `just omc <verb>`, `just design`, `just decisions`: Python run through `uv run`, a test beside each file
+omc/tools/         `just omc <verb>`, `just design`, `just investigate`, `just decisions`: Python run through `uv run`, a test beside each file
 omc/VERSION        the oh-my-clanker commit this copy was installed or updated from
 .cache/omc/        current (the running skill) and impact (a rebase not yet read): where a run is
 ```
