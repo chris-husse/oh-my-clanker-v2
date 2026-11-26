@@ -562,6 +562,35 @@ class DoneTest(unittest.TestCase):
         self.assertTrue(self.not_passed().endswith('src/b.txt'))
 
 
+@unittest.skipUnless(hasattr(os, 'sched_getaffinity'), 'no CPU affinity on this platform')
+class CoresTest(unittest.TestCase):
+    """A gate's command runs off core 0 (done.RESERVED_CORES), and so does every process it starts."""
+
+    def test_the_cores_are_ours_but_core_0(self):
+        mine = os.sched_getaffinity(0)
+        with mock.patch.object(os, 'sched_getaffinity', return_value={0, 1, 2, 3}):
+            self.assertEqual(done.gate_cores(), {1, 2, 3})
+        with mock.patch.object(os, 'sched_getaffinity', return_value={2, 5}):
+            self.assertEqual(done.gate_cores(), {2, 5})
+        self.assertTrue(done.gate_cores() <= mine)
+
+    def test_a_machine_of_one_core_keeps_it(self):
+        with mock.patch.object(os, 'sched_getaffinity', return_value={0}):
+            self.assertEqual(done.gate_cores(), {0})
+
+    def test_the_command_and_its_children_run_off_core_0(self):
+        if len(os.sched_getaffinity(0) - done.RESERVED_CORES) == 0:
+            self.skipTest('this process may use core 0 alone')
+        chunks = []
+        script = 'import os, subprocess, sys; print(sorted(os.sched_getaffinity(0))); sys.stdout.flush(); ' \
+                 'subprocess.run([sys.executable, "-c", "import os; print(sorted(os.sched_getaffinity(0)))"])'
+        with tempfile.TemporaryDirectory() as root:
+            code = done._run((sys.executable, '-c', script), root, chunks.append, None)
+        self.assertEqual(code, 0)
+        want = str(sorted(done.gate_cores()))
+        self.assertEqual(b''.join(chunks).decode().splitlines(), [want, want])
+
+
 class CliTest(unittest.TestCase):
     """The entry itself, `python3 -I omc/tools/omc.py`, over one repository."""
 

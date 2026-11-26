@@ -222,8 +222,27 @@ def _drain(chunks, out, wait):
     return True
 
 
+# The cores a gate's commands leave free (the owner, 2026-11-26): core 0 stays for the desktop, the agents and the
+# terminals, whatever the machine; a machine with one core keeps it.
+RESERVED_CORES = frozenset({0})
+
+
+def gate_cores():
+    """The cores a gate's command may run on: those this process may use, but RESERVED_CORES, unless that would leave
+    none; None where the platform sets no affinity (macOS), and the command runs where the system puts it."""
+    if not hasattr(os, 'sched_getaffinity'):
+        return None
+    mine = os.sched_getaffinity(0)
+    return (mine - RESERVED_CORES) or mine
+
+
+def _pinned(cores):
+    """The child's first act, before its exec: its affinity set to [cores], which every process it starts inherits."""
+    return None if cores is None else (lambda: os.sched_setaffinity(0, cores))
+
+
 def _run(argv, root, out, quiet):
-    """Runs [argv] at [root] in its own session, its stdout and stderr to [out] as they come; its exit code, or SILENT
+    """Runs [argv] at [root] in its own session, on gate_cores() (core 0 left free), its stdout and stderr to [out] as they come; its exit code, or SILENT
     once [quiet] seconds (None: never) passed without a byte, the session ended (`_end_group`) and `no output for <s>
     s: killed` written. A command that has exited while a process it left in its group still holds the pipe keeps
     its own code: at the end of the silence that group is ended, with no kill line. A stop of ours (`_stoppable`) or an interrupt ends the session too, and is raised again.
@@ -231,7 +250,7 @@ def _run(argv, root, out, quiet):
     chunks = queue.Queue()
     try:
         proc = subprocess.Popen(argv, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                start_new_session=True)
+                                start_new_session=True, preexec_fn=_pinned(gate_cores()))
     except OSError as e:
         raise Refused(f'cannot run {argv[0]}: {e.strerror}') from None
     killed = False
